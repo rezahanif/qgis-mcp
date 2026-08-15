@@ -30,6 +30,7 @@ if str(_SDK) not in sys.path:
     sys.path.insert(0, str(_SDK))
 
 from mcp_license_sdk import LicenseError, LicenseValidator, fail, ok  # noqa: E402
+from mcp_license_sdk import interception  # noqa: E402
 
 CONNECTOR_ID = "qgis-mcp"
 
@@ -149,66 +150,14 @@ def wrap_tools(mcp) -> int:
 
 
 def install_call_interceptor(mcp) -> bool:
-    """Register a tools/call interceptor on FastMCP 3.x's LOW-LEVEL server.
-
-    FastMCP registers its own call_tool handler on construction via
-    `_mcp_server.call_tool(validate_input=False)(handler)`. Re-registering
-    replaces it with ours — every tool's fn/signature/schema stays
-    UNTOUCHED (the supported interception boundary). Our handler:
-      1. per-call license recheck + binding (fail → LICENSE envelope),
-      2. delegates to the real ToolManager (full input validation +
-         output conversion),
-      3. envelopes the RESULT content (ok/fail) — this is where the old
-         wrap broke on FastMCP 3.4.7 (JSON-string return vs frozen output
-         model validation).
-
-    Returns True when the interceptor was installed (FastMCP 3.x path);
-    False when unavailable/disabled — caller falls back to wrap_tools.
-    """
+    """Envelope tools/call via the shared SDK helper (mcp_license_sdk.
+    interception) — low-level call_tool re-registration on the mcp-SDK
+    FastMCP class; tools stay untouched (fixes the FastMCP 3.4.7
+    wrapped-call failure). Returns True when installed; False → caller
+    falls back to the legacy per-tool wrap (fastmcp <3.x)."""
     if not _enabled():
         return False
-    low = getattr(mcp, "_mcp_server", None)
-    if low is None or not hasattr(low, "call_tool"):
-        print("aioconnect: low-level server not found — interceptor skipped", file=sys.stderr)
-        return False
-
-    async def _intercept(name, arguments):
-        from mcp.types import CallToolResult
-
-        try:
-            _validate()  # per-call recheck + binding
-        except LicenseError as e:
-            return CallToolResult(content=[TextContent(type="text", text=json.dumps(fail("LICENSE", str(e))))])
-        try:
-            result = await mcp._tool_manager.call_tool(
-                name, arguments, context=mcp.get_context(), convert_result=True
-            )
-        except Exception as e:
-            return CallToolResult(content=[TextContent(type="text", text=json.dumps(fail("TOOL_ERROR", str(e))))])
-        return _envelope_result(result)
-
-    low.call_tool(validate_input=False)(_intercept)
-    return True
-
-
-def _envelope_result(result):
-    """Envelope FastMCP tool result into a CallToolResult.
-
-    CallToolResult is returned by the low-level server as-is (no output
-    re-validation), so the envelope rides in content[0].text and the
-    original structuredContent passes through for structured tools.
-    """
-    from mcp.types import CallToolResult, TextContent
-
-    content, structured = (result if isinstance(result, tuple) else (result, None))
-    text = ""
-    for block in (content or []):
-        if getattr(block, "type", None) == "text":
-            text = getattr(block, "text", "") or ""
-            break
-    if not text:
-        text = json.dumps(structured if structured is not None else result, default=str)
-    return CallToolResult(
-        content=[TextContent(type="text", text=_wrap_result(text))],
-        structuredContent=structured,
-    )
+    installed = interception.install_call_interceptor(mcp, _validate, _wrap_result)
+    if not installed:
+        print("aioconnect: call interceptor not installed — falling back to wrap_tools", file=sys.stderr)
+    return installed
