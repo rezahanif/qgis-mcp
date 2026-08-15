@@ -1,0 +1,31 @@
+{
+  "id": "qgis-mcp",
+  "name": "QGIS Connector",
+  "version": "0.11.0",
+  "manifest_schema_version": 1,
+  "package_format_version": 1,
+  "platform": {
+    "os": "windows",
+    "arch": "x64"
+  },
+  "runtime": "python",
+  "entry": "qgis_mcp/server.py",
+  "min_app_version": "0.4.0",
+  "entitlement_tier": "pro",
+  "port_env_var": "MCP_PORT",
+  "token_env_var": "MCP_LICENSE_TOKEN",
+  "stdio": true,
+  "host_plugin": {
+    "type": "qgis-plugin",
+    "host_app": "QGIS",
+    "install_target_template": "{base}/QGIS/profiles/default/python/plugins/qgis_mcp_plugin/",
+    "artifact": "qgis_mcp_plugin.zip",
+    "requires_host_restart": true,
+    "socket_port_env_var": "QGIS_MCP_PORT",
+    "supported_versions": ["3"]
+  },
+  "platform_requirements": {
+    "windows": ["Windows 10/11", "QGIS installed (plugin loaded in QGIS)"],
+    "qgis": ["QGIS plugin must be installed in the host profile; MCP server starts headless without it (tools fail with structured TOOL_ERROR)"]
+  }
+}

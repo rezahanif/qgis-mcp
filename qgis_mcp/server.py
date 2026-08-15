@@ -19,6 +19,12 @@ from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from typing import Any
 
+# AiConnect: entry bootstrap — the PM spawns `python3 qgis_mcp/server.py` from
+# the connector root, but sys.path[0] is the script's own directory, so the
+# `qgis_mcp` package (its parent) is NOT importable without this. Makes the
+# manifest entry work from any cwd (gateway + clean-env runs).
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 try:
     from mcp.server.fastmcp import Context, FastMCP
     from mcp.server.fastmcp.prompts.base import UserMessage
@@ -3306,6 +3312,18 @@ def style_map_prompt(layer_id: str, field: str) -> list[UserMessage]:
 
 
 def main():
+    # AiConnect adapter (integration layer; no-op unless AICONNECT_ENABLE=1):
+    # license gate at startup + central response-envelope wrap of every tool.
+    try:
+        from qgis_mcp import aioconnect
+    except ImportError:  # standalone run without the shared AiConnect SDK
+        aioconnect = None
+    if aioconnect is not None:
+        aioconnect.ensure_licensed()
+        wrapped = aioconnect.wrap_tools(mcp)
+        if wrapped:
+            print(f"aioconnect: wrapped {wrapped} tools", file=sys.stderr)
+
     transport = os.environ.get("QGIS_MCP_TRANSPORT", "stdio")
     if transport == "streamable-http":
         mcp.run(transport="streamable-http")
