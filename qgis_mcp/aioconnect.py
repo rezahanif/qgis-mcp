@@ -107,9 +107,12 @@ async def _call(fn, args, kwargs):
 
 
 def wrap_tools(mcp) -> int:
-    """Centrally wrap every tool registered on the FastMCP/MCPServer instance.
-    Returns the number of tools wrapped. Version-tolerant: if the tool manager
-    internals change, logs and continues (license gate stays enforced).
+    """Legacy per-tool fn swap (FastMCP <3.x / fastmcp 1.x fallback).
+
+    Do NOT use on FastMCP 3.4.7: replacing tool.fn keeps the frozen
+    fn_metadata output model, so a wrapped JSON-string return fails
+    structured-output validation (DictModel input_type=str). Prefer
+    install_call_interceptor on 3.x.
     """
     if not _enabled():
         return 0
@@ -143,3 +146,69 @@ def wrap_tools(mcp) -> int:
             registry[name] = wrapped_fn
         wrapped += 1
     return wrapped
+
+
+def install_call_interceptor(mcp) -> bool:
+    """Register a tools/call interceptor on FastMCP 3.x's LOW-LEVEL server.
+
+    FastMCP registers its own call_tool handler on construction via
+    `_mcp_server.call_tool(validate_input=False)(handler)`. Re-registering
+    replaces it with ours — every tool's fn/signature/schema stays
+    UNTOUCHED (the supported interception boundary). Our handler:
+      1. per-call license recheck + binding (fail → LICENSE envelope),
+      2. delegates to the real ToolManager (full input validation +
+         output conversion),
+      3. envelopes the RESULT content (ok/fail) — this is where the old
+         wrap broke on FastMCP 3.4.7 (JSON-string return vs frozen output
+         model validation).
+
+    Returns True when the interceptor was installed (FastMCP 3.x path);
+    False when unavailable/disabled — caller falls back to wrap_tools.
+    """
+    if not _enabled():
+        return False
+    low = getattr(mcp, "_mcp_server", None)
+    if low is None or not hasattr(low, "call_tool"):
+        print("aioconnect: low-level server not found — interceptor skipped", file=sys.stderr)
+        return False
+
+    async def _intercept(name, arguments):
+        from mcp.types import CallToolResult
+
+        try:
+            _validate()  # per-call recheck + binding
+        except LicenseError as e:
+            return CallToolResult(content=[TextContent(type="text", text=json.dumps(fail("LICENSE", str(e))))])
+        try:
+            result = await mcp._tool_manager.call_tool(
+                name, arguments, context=mcp.get_context(), convert_result=True
+            )
+        except Exception as e:
+            return CallToolResult(content=[TextContent(type="text", text=json.dumps(fail("TOOL_ERROR", str(e))))])
+        return _envelope_result(result)
+
+    low.call_tool(validate_input=False)(_intercept)
+    return True
+
+
+def _envelope_result(result):
+    """Envelope FastMCP tool result into a CallToolResult.
+
+    CallToolResult is returned by the low-level server as-is (no output
+    re-validation), so the envelope rides in content[0].text and the
+    original structuredContent passes through for structured tools.
+    """
+    from mcp.types import CallToolResult, TextContent
+
+    content, structured = (result if isinstance(result, tuple) else (result, None))
+    text = ""
+    for block in (content or []):
+        if getattr(block, "type", None) == "text":
+            text = getattr(block, "text", "") or ""
+            break
+    if not text:
+        text = json.dumps(structured if structured is not None else result, default=str)
+    return CallToolResult(
+        content=[TextContent(type="text", text=_wrap_result(text))],
+        structuredContent=structured,
+    )

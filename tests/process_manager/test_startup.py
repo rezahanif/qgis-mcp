@@ -36,17 +36,16 @@ def test_exposes_tools():
         stop(proc)
 
 
-def test_tool_dispatch():
-    """list_qgis_instances (zero-arg, no QGIS needed) executes through the
-    real server — proves MCP server + tool registration + dispatch.
-
-    NOTE: dispatch runs in PLAIN mode (no adapter), matching the office/
-    sap2000 harnesses. Adapter-mode wrapped CALLS on fastmcp 3.4.7 hit a
-    FastMCP input-validation incompatibility (DictModel receives str) —
-    tracked as a connector-polish finding; the envelope contract itself is
-    proven at unit level (tests/test_aioconnect.py, 13 checks).
-    """
-    proc = spawn_server()
+def test_tool_dispatch_enveloped():
+    """Adapter-mode tool call must return an ok envelope through the
+    low-level interceptor — regression for the FastMCP 3.4.7 wrapped-call
+    failure (JSON-string return vs frozen output-model validation).
+    list_qgis_instances returns dict[str, Any] → DictModel-validated."""
+    proc = spawn_server(env_extra={
+        "AICONNECT_ENABLE": "1",
+        "JWT_SECRET": SECRET,
+        "MCP_LICENSE_TOKEN": mint(),
+    })
     try:
         mcp_initialize(proc)
         assert proc.stdin is not None
@@ -60,7 +59,7 @@ def test_tool_dispatch():
         proc.stdin.flush()
         resp = json.loads(proc.stdout.readline().decode())
         content = resp["result"]["content"][0]["text"]
-        assert "instances" in content.lower() or "default" in content.lower()
+        assert '"success":' in content and '"data"' in content, f"expected ok envelope, got: {content[:200]}"
     finally:
         stop(proc)
 

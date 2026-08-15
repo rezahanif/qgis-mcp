@@ -3320,9 +3320,13 @@ def main():
         aioconnect = None
     if aioconnect is not None:
         aioconnect.ensure_licensed()
-        wrapped = aioconnect.wrap_tools(mcp)
-        if wrapped:
-            print(f"aioconnect: wrapped {wrapped} tools", file=sys.stderr)
+        # FastMCP 3.x: intercept at the low-level call boundary (tools stay
+        # untouched — envelope applied post-validation). Fallback: legacy
+        # per-tool wrap for fastmcp <3.x.
+        if not aioconnect.install_call_interceptor(mcp):
+            wrapped = aioconnect.wrap_tools(mcp)
+            if wrapped:
+                print(f"aioconnect: wrapped {wrapped} tools", file=sys.stderr)
 
     transport = os.environ.get("QGIS_MCP_TRANSPORT", "stdio")
     if transport == "streamable-http":
