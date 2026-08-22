@@ -17,6 +17,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any
 
 # AiConnect: entry bootstrap — the PM spawns `python3 qgis_mcp/server.py` from
@@ -3216,6 +3217,191 @@ instances (default: unset = a single instance named "default" from QGIS_MCP_HOST
 - QGIS_MCP_LOG_FILE - log file path (default: ~/.local/share/qgis-mcp/server.log)
 - QGIS_MCP_LOG_LEVEL - file log level (default: INFO)
 """
+
+
+# ===========================================================================
+# LAYER B — API GUIDANCE TOOLS (AiConnect Phase 1 standardization)
+# ===========================================================================
+# Fallback path: when no dedicated Layer A tool covers the intent, the agent
+# searches the PyQGIS docs, composes code, runs it via execute_code, then
+# registers the verified function so the next agent finds it directly.
+#
+#   Direct path:   Layer A tool (typed params) → result
+#   Fallback path: search_qgis_api → find call → execute_code → verify
+#   Growth path:   register_verified_qgis → next agent sees it in registry
+# ===========================================================================
+
+from qgis_mcp.doc_search import doc_index  # noqa: E402
+from qgis_mcp.function_registry import registry  # noqa: E402
+
+_TEMPLATES_PATH = Path(__file__).resolve().parent.parent / "templates" / "templates.json"
+
+
+def _load_templates() -> dict:
+    try:
+        return json.loads(_TEMPLATES_PATH.read_text(encoding="utf-8")).get("templates", {})
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+@mcp.tool(
+    title="List Templates",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    description="List ready-to-run PyQGIS code templates for common GIS operations "
+    "(buffer, clip, spatial join, categorized/graduated styling, field statistics). "
+    "Each template is verified code the agent can adapt instead of writing from scratch.",
+    structured_output=True,
+)
+async def list_templates(ctx: Context) -> list[dict]:
+    """List available code templates.
+
+    Returns [{id, name, description, category}]. Pair with load_template
+    to get the full code block for a template id.
+    """
+    return [
+        {"id": tid, "name": t["name"], "description": t["description"], "category": t["category"]}
+        for tid, t in sorted(_load_templates().items())
+    ]
+
+
+@mcp.tool(
+    title="Load Template",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    description="Load one template's full PyQGIS code by id (from list_templates). "
+    "The code is verified against real QGIS — adapt names/params to your layers and run via execute_code.",
+    structured_output=True,
+)
+async def load_template(ctx: Context, template_id: str) -> dict[str, Any]:
+    """Load a template's code.
+
+    template_id: id from list_templates (e.g. "buffer_analysis").
+    Returns {id, name, description, category, code}.
+    """
+    templates = _load_templates()
+    t = templates.get(template_id)
+    if t is None:
+        return {"error": f"Unknown template: {template_id}", "available": sorted(templates)}
+    return {"id": template_id, **t}
+
+
+@mcp.tool(
+    title="Search QGIS API",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    description="Search the PyQGIS API documentation for classes and methods matching a query. "
+    "Use this when no dedicated Layer A tool covers your intent: find the right QgsClass/method, "
+    "read its signature, compose Python, and run it via execute_code. Returns function name, "
+    "syntax, description, and example snippet.",
+    structured_output=True,
+)
+async def search_qgis_api(
+    ctx: Context,
+    query: str,
+    category: str | None = None,
+) -> list[dict]:
+    """Search PyQGIS API documentation by keyword.
+
+    query: What you need (e.g. "interpolate raster", "spatial index", "label buffer").
+    category: Optional — restrict to one of list_qgis_api_categories results.
+
+    Always search here BEFORE writing execute_code with an unfamiliar Qgs class —
+    it returns the correct class name, constructor args, and usage conventions.
+    """
+    return doc_index.search(query=query, category=category)
+
+
+@mcp.tool(
+    title="List QGIS API Categories",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    description="List all available PyQGIS API documentation categories with section counts. "
+    "Use this to explore what the API reference covers before searching.",
+    structured_output=True,
+)
+async def list_qgis_api_categories(ctx: Context) -> list[dict]:
+    """List PyQGIS documentation categories.
+
+    Returns: [{category, sections}] — e.g. Processing Framework (42),
+    Layer Management (18). Pair a category with search_qgis_api to narrow.
+    """
+    return doc_index.list_categories()
+
+
+@mcp.tool(
+    title="Query Function Registry",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    description="Query the registry of verified PyQGIS functions. Use BEFORE writing custom "
+    "execute_code: if a function is already verified here, its entry records the exact working "
+    "call pattern, parameter notes, and pitfalls discovered by earlier agents.",
+    structured_output=True,
+)
+async def qgis_function_registry_query(
+    ctx: Context,
+    function_path: str | None = None,
+    category: str | None = None,
+    verified_only: bool = False,
+    query: str | None = None,
+) -> dict[str, Any]:
+    """Query the registry of verified PyQGIS API functions.
+
+    Modes:
+      - No arguments: registry summary (total registered, verified)
+      - function_path: full detail of that specific function
+      - category / query / verified_only: filtered list
+
+    A verified function means an agent ran it against real QGIS successfully —
+    prefer these patterns over guessing from training data.
+    """
+    if function_path:
+        fn = registry.get_function(function_path)
+        if fn is None:
+            return {"error": f"Unknown function: {function_path}", "registered": False}
+        return {"registered": True, **fn}
+    if not any([function_path, category, query]) or verified_only:
+        summary = registry.get_summary()
+        out: dict = {"summary": summary}
+        matches = registry.list_functions(category=category, verified_only=verified_only, query=query)
+        out["functions"] = matches
+        return out
+    matches = registry.list_functions(category=category, verified_only=False, query=query)
+    return {"summary": registry.get_summary(), "functions": matches}
+
+
+@mcp.tool(
+    title="Register Verified QGIS Function",
+    description="Register a PyQGIS function you just verified via execute_code so future agents "
+    "find the working pattern in the registry instead of re-deriving it. Call AFTER the code ran "
+    "successfully on real QGIS. Records signature, parameter notes, and pitfalls.",
+    structured_output=True,
+)
+async def register_verified_qgis(
+    ctx: Context,
+    function_path: str,
+    category: str,
+    description: str = "",
+    signature: str = "",
+    parameter_notes: str = "",
+    notes: str = "",
+) -> dict[str, Any]:
+    """Register or update a verified PyQGIS API function.
+
+    function_path: Dot-path like "QgsVectorLayer.getFeatures" or "processing.run".
+    category: One of the list_qgis_api_categories values (e.g. "Processing", "Vector").
+    description: What the function does in practice.
+    signature: Real call pattern, e.g. 'processing.run("native:buffer", {INPUT, DISTANCE}) -> {OUTPUT}'.
+    parameter_notes: Parameter quirks (units, accepted values, common mistakes).
+    notes: Pitfalls discovered during verification.
+
+    Only register what actually ran without error — the registry's value IS trustworthiness.
+    """
+    result = registry.register_function(
+        function_path=function_path,
+        category=category,
+        description=description,
+        signature=signature,
+        parameter_notes=parameter_notes,
+        notes=notes,
+    )
+    registry.mark_verified(function_path)
+    return result
 
 
 # ===========================================================================

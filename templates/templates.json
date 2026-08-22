@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "templates": {
+    "buffer_analysis": {
+      "name": "Buffer Analysis",
+      "description": "Create fixed-distance buffers around vector features — the most common proximity operation.",
+      "category": "Vector Analysis",
+      "code": "result = processing.run('native:buffer', {\n    'INPUT': layer,\n    'DISTANCE': distance,          # map units (meters in projected CRS)\n    'SEGMENTS': 8,                 # arc approximation; 8 is default, 16 smoother\n    'DISSOLVE': False,             # True = merge overlapping buffers into one\n    'OUTPUT': 'memory:buffer'\n})\noutput_layer = result['OUTPUT']"
+    },
+    "clip_layer": {
+      "name": "Clip Layer",
+      "description": "Extract features of INPUT that fall inside OVERLAY polygons.",
+      "category": "Vector Analysis",
+      "code": "result = processing.run('native:clip', {\n    'INPUT': input_layer,\n    'OVERLAY': clip_layer,         # polygon layer defining the keep-region\n    'OUTPUT': 'memory:clipped'\n})\noutput_layer = result['OUTPUT']"
+    },
+    "spatial_join_attrs": {
+      "name": "Spatial Join (Attributes)",
+      "description": "Transfer summary attributes from JOIN layer onto TARGET features by spatial relationship.",
+      "category": "Vector Analysis",
+      "code": "result = processing.run('native:joinattributesbylocation', {\n    'INPUT': target_layer,\n    'JOIN': join_layer,\n    'PREDICATE': [0],              # 0=intersects 1=contains 2=equals 3=touches 4=overlaps 5=within\n    'JOIN_FIELDS': [],             # empty = all fields\n    'SUMMARY_ONLY': False,\n    'DISCARD_NONMATCHING': False,\n    'OUTPUT': 'memory:joined'\n})\noutput_layer = result['OUTPUT']"
+    },
+    "categorized_style": {
+      "name": "Categorized Style",
+      "description": "Style a vector layer with one symbol per unique value of a field.",
+      "category": "Styling",
+      "code": "from qgis.core import QgsCategorizedSymbolRenderer, QgsRendererCategory, QgsSymbol\nfrom qgis.PyQt.QtGui import QColor\n\ncategories = []\npalette = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00']\nfor i, value in enumerate(layer.uniqueValues(layer.fields().indexOf(field_name))):\n    sym = QgsSymbol.defaultSymbol(layer.geometryType())\n    sym.setColor(QColor(palette[i % len(palette)]))\n    categories.append(QgsRendererCategory(value, sym, str(value)))\nlayer.setRenderer(QgsCategorizedSymbolRenderer(field_name, categories))\nlayer.triggerRepaint()"
+    },
+    "graduated_style": {
+      "name": "Graduated Style",
+      "description": "Style a numeric field into classes with a color ramp.",
+      "category": "Styling",
+      "code": "from qgis.core import (QgsGraduatedSymbolRenderer, QgsRendererRange,\n                       QgsClassificationQuantile, QgsSymbol)\nfrom qgis.PyQt.QtGui import QColor\n\nsym = QgsSymbol.defaultSymbol(layer.geometryType())\nrenderer = QgsGraduatedSymbolRenderer(\n    field_name, [])\nrenderer.setClassAttribute(field_name)\nrenderer.setClassificationMethod(QgsClassificationQuantile(5))  # 5 quantile classes\nrenderer.updateClasses(layer, 5)\nramp = renderer.rasterStylesymbol() if False else None\nfrom qgis.core import QgsGradientColorRamp, QgsGradientStop\nrenderer.setSourceColorRamp(QgsGradientColorRamp(\n    QColor('#fee5d9'), QColor('#99000d')))  # light→dark sequential reds\nfor rng in renderer.ranges():\n    s = QgsSymbol.defaultSymbol(layer.geometryType())\n    rng.setSymbol(s)\nlayer.setRenderer(renderer)\nlayer.triggerRepaint()"
+    },
+    "field_statistics_report": {
+      "name": "Field Statistics Report",
+      "description": "Full numeric profile of one field: count, min, max, mean, std, median.",
+      "category": "Expressions",
+      "code": "import statistics\nvals = [f[field_name] for f in layer.getFeatures() if f[field_name] is not None]\nstats = {\n    'count': len(vals),\n    'min': min(vals), 'max': max(vals),\n    'mean': statistics.fmean(vals),\n    'stdev': statistics.stdev(vals) if len(vals) > 1 else 0.0,\n    'median': statistics.median(vals),\n}"
+    }
+  }
+}
