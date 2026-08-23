@@ -7,7 +7,9 @@ Adaptation of [qgis-mcp](https://github.com/rezahanif/qgis-mcp) (commit
 this connector package and any modification/redistribution of it; it runs as
 a SEPARATE process spawned by the Process Manager (never linked into the
 gateway), so the GPL boundary is the connector package itself. The AiConnect
-gateway/SDK are not affected by this license.
+gateway/SDK are not affected by this license. Full distribution reasoning —
+process isolation, socket-aggregation argument, public-source position, and
+the entitlement-gate caveat — is recorded in `LICENSE_PERMISSION.md`.
 
 ## Architecture (as upstream built it)
 
