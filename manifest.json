@@ -22,10 +22,39 @@
     "artifact": "qgis_mcp_plugin.zip",
     "requires_host_restart": true,
     "socket_port_env_var": "QGIS_MCP_PORT",
-    "supported_versions": ["3"]
+    "supported_versions": [
+      "3"
+    ]
   },
   "platform_requirements": {
-    "windows": ["Windows 10/11", "QGIS installed (plugin loaded in QGIS)"],
-    "qgis": ["QGIS plugin must be installed in the host profile; MCP server starts headless without it (tools fail with structured TOOL_ERROR)"]
+    "windows": [
+      "Windows 10/11",
+      "QGIS installed (plugin loaded in QGIS)"
+    ],
+    "qgis": [
+      "QGIS plugin must be installed in the host profile; MCP server starts headless without it (tools fail with structured TOOL_ERROR)"
+    ]
+  },
+  "config": {
+    "env": [
+      {
+        "key": "QGIS_MCP_HOST",
+        "label": "QGIS bridge host",
+        "kind": "host",
+        "secret": false,
+        "required": false,
+        "default": "127.0.0.1",
+        "description": "Host running QGIS plugin bridge."
+      },
+      {
+        "key": "QGIS_MCP_PORT",
+        "label": "QGIS bridge port",
+        "kind": "host",
+        "secret": false,
+        "required": false,
+        "default": "48152",
+        "description": "TCP port exposed by QGIS plugin bridge."
+      }
+    ]
   }
 }
