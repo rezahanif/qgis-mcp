@@ -48,6 +48,8 @@ from pydantic import BaseModel, Field
 
 from qgis_mcp.client import QgisMCPClient
 from qgis_mcp.errors import (
+    ERROR_HINTS,
+    CommandError,
     ConnectionError_,
     CRSError,
     FieldNotFoundError,
@@ -426,20 +428,27 @@ def _send_sync(
     return result.get("result", {})
 
 
-def _get_error_hint(message: str) -> str | None:
-    """Return a helpful hint based on common QGIS/MCP error messages."""
+def _classify_error(message: str) -> type[PluginError]:
+    """Map a raw error message to the typed PluginError subclass it represents.
+
+    Same conditions, same first-match-wins order, as the hint text in
+    errors.ERROR_HINTS - this is the single place that decides which typed
+    class a failure becomes, so the mapping can't drift between the message
+    a human reads and the error_code an agent gets via to_payload()/
+    get_error_hints.
+    """
     msg = message.lower()
     if "not found" in msg and "layer" in msg:
-        return "Try calling 'get_layers' to see all valid layer IDs."
+        return LayerNotFoundError
     if "field" in msg and "not found" in msg:
-        return "Check the layer schema using 'qgis://layers/{layer_id}/schema'."
+        return FieldNotFoundError
     if "crs" in msg or "projection" in msg:
-        return "Verify CRS strings (e.g., 'EPSG:4326') or use 'transform_coordinates'."
+        return CRSError
     if "connection" in msg or "refused" in msg:
-        return "Ensure the QGIS MCP plugin is started (Plugins > QGIS MCP > Start Server)."
+        return ConnectionError_
     if "timeout" in msg:
-        return "The operation took too long. For large renders or processing, this is expected."
-    return None
+        return TimeoutError_
+    return CommandError
 
 
 async def _send(
@@ -452,13 +461,16 @@ async def _send(
     """Send a command via asyncio.to_thread to avoid blocking the event loop."""
     try:
         return await asyncio.to_thread(_send_sync, command_type, params, timeout, instance, retries)
+    except PluginError:
+        raise
     except Exception as exc:
         message = str(exc)
-        hint = _get_error_hint(message)
+        error_cls = _classify_error(message)
+        hint = get_error_hint(error_cls.error_code)
         if hint:
             logger.warning(f"Error hint added for: {message}")
-            raise RuntimeError(f"{message}\n\nHINT: {hint}") from exc
-        raise
+        full_message = f"{message}\n\nHINT: {hint}" if hint else message
+        raise error_cls(full_message) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -3332,6 +3344,31 @@ async def list_qgis_api_categories(ctx: Context) -> list[dict]:
     Layer Management (18). Pair a category with search_qgis_api to narrow.
     """
     return doc_index.list_categories()
+
+
+@mcp.tool(
+    title="Get Error Hints",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    description="Look up recovery guidance for a typed QGIS MCP error code (CONNECTION_ERROR, "
+    "LAYER_NOT_FOUND, FIELD_NOT_FOUND, CRS_ERROR, TIMEOUT, COMMAND_ERROR). Omit error_code to "
+    "list all known codes. Call this after a tool fails to get the recovery step for its error_code.",
+    structured_output=True,
+)
+async def get_error_hints(
+    ctx: Context,
+    error_code: Annotated[str | None, Field(description="Error code to look up (e.g. CONNECTION_ERROR). Omit to list all known codes.")] = None,
+) -> dict[str, Any]:
+    """Look up recovery hints for a typed error code.
+
+    Returns the hint for a specific error code, or lists all known error
+    codes if omitted.
+    """
+    if error_code:
+        hint = get_error_hint(error_code)
+        if hint is None:
+            return {"error": f"Unknown error code: {error_code}", "known_codes": list(ERROR_HINTS.keys())}
+        return {"error_code": error_code, "hint": hint}
+    return {"error_codes": list(ERROR_HINTS.keys()), "hint": "Pass an error_code to get specific recovery guidance."}
 
 
 @mcp.tool(

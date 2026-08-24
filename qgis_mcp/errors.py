@@ -6,13 +6,36 @@ replacing bare RuntimeError with typed exceptions carrying hints.
 from typing import Any
 
 
-class PluginError(Exception):
-    """Base for all QGIS MCP plugin-related errors."""
+class PluginError(RuntimeError):
+    """Base for all QGIS MCP plugin-related errors.
+
+    Subclasses RuntimeError (not bare Exception) so existing call sites and
+    tests written against "_send raises RuntimeError" keep working unchanged
+    - the type hierarchy adds precision, it doesn't replace the contract.
+    """
     error_code: str = "PLUGIN_ERROR"
 
     def __init__(self, message: str, *, details: Any = None):
         super().__init__(message)
+        self.message = message
         self.details = details
+
+    def to_payload(self) -> dict:
+        """Structured payload for the AiConnect fail envelope.
+
+        Picked up automatically by connector-sdk's interception layer
+        (checks ``cause.to_payload`` on the typed exception reachable via
+        ``__cause__``) when the license gate is enabled - no per-tool
+        wiring needed beyond raising the right subclass.
+        """
+        hint = get_error_hint(self.error_code) or ""
+        return {
+            "error_code": self.error_code,
+            "message": self.message,
+            "hint": hint,
+            "recovery": [hint] if hint else [],
+            "details": self.details,
+        }
 
 
 class ConnectionError_(PluginError):
