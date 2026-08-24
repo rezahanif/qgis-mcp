@@ -18,7 +18,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
 
 # AiConnect: entry bootstrap — the PM spawns `python3 qgis_mcp/server.py` from
 # the connector root, but sys.path[0] is the script's own directory, so the
@@ -47,6 +47,15 @@ from mcp.types import (
 from pydantic import BaseModel, Field
 
 from qgis_mcp.client import QgisMCPClient
+from qgis_mcp.errors import (
+    ConnectionError_,
+    CRSError,
+    FieldNotFoundError,
+    LayerNotFoundError,
+    PluginError,
+    TimeoutError_,
+    get_error_hint,
+)
 from qgis_mcp.helpers import (
     BATCH_BLOCKED_COMMANDS,
     DEFAULT_HOST,
@@ -460,7 +469,7 @@ async def _send(
 class _ConfirmSchema(BaseModel):
     """Response schema for destructive-operation confirmation."""
 
-    confirm: bool = Field(description="Confirm this operation")
+    confirm: Annotated[bool, Field(description="Confirm this operation")]
 
 
 async def _confirm_destructive(ctx: Context, message: str) -> bool:
@@ -568,7 +577,7 @@ def cached_resource(cache_id: str) -> str:
     description="Check connectivity to the QGIS plugin server. Returns pong if connected.",
     structured_output=True,
 )
-async def ping(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def ping(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("ping", instance=instance)
 
 
@@ -579,7 +588,7 @@ async def ping(ctx: Context, instance: str | None = Field(default=None, descript
     "plugin/server version match, processing providers, connected clients, and project status.",
     structured_output=True,
 )
-async def diagnose(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def diagnose(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     """Check health of the full MCP ↔ QGIS chain."""
     await ctx.info("Running diagnostics...")
     result = await _send("diagnose", instance=instance)
@@ -671,7 +680,7 @@ async def list_qgis_instances(ctx: Context) -> dict[str, Any]:
     description="Get QGIS version, profile path, and plugin count.",
     structured_output=True,
 )
-async def get_qgis_info(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_qgis_info(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_qgis_info", instance=instance)
 
 
@@ -681,7 +690,7 @@ async def get_qgis_info(ctx: Context, instance: str | None = Field(default=None,
     description="Get current project metadata: filename, title, CRS, layer count, and summary of layers.",
     structured_output=True,
 )
-async def get_project_info(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_project_info(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_project_info", instance=instance)
 
 
@@ -689,7 +698,7 @@ async def get_project_info(ctx: Context, instance: str | None = Field(default=No
 
 
 @mcp.tool(title="Load Project", description="Load a QGIS project from a .qgs/.qgz file path.")
-async def load_project(ctx: Context, path: str = Field(description="File path"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> list:
+async def load_project(ctx: Context, path: Annotated[str, Field(description="File path")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> list:
     await ctx.info(f"Loading project: {path}")
     result = await _send("load_project", {"path": path}, instance=instance)
     return make_project_response(result)
@@ -699,7 +708,7 @@ async def load_project(ctx: Context, path: str = Field(description="File path"),
     title="Create New Project",
     description="Create a new empty QGIS project and save it to the given path.",
 )
-async def create_new_project(ctx: Context, path: str = Field(description="File path"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> list:
+async def create_new_project(ctx: Context, path: Annotated[str, Field(description="File path")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> list:
     result = await _send("create_new_project", {"path": path}, instance=instance)
     return make_project_response(result)
 
@@ -709,7 +718,7 @@ async def create_new_project(ctx: Context, path: str = Field(description="File p
     annotations=ToolAnnotations(idempotentHint=True),
     description="Save the current project. Optionally specify a new path.",
 )
-async def save_project(ctx: Context, path: str | None = Field(default=None, description="File path"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def save_project(ctx: Context, path: Annotated[str | None, Field(description="File path")] = None, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     params = {}
     if path:
         params["path"] = path
@@ -728,9 +737,9 @@ async def save_project(ctx: Context, path: str | None = Field(default=None, desc
 )
 async def get_layers(
     ctx: Context,
-    limit: int = Field(default=50, description="Maximum number of results to return"),
-    offset: int = Field(default=0, description="Number of results to skip for pagination"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    limit: Annotated[int, Field(description="Maximum number of results to return")] = 50,
+    offset: Annotated[int, Field(description="Number of results to skip for pagination")] = 0,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("get_layers", {"limit": limit, "offset": offset}, instance=instance)
 
@@ -741,10 +750,10 @@ async def get_layers(
 )
 async def add_vector_layer(
     ctx: Context,
-    path: str = Field(description="File path"),
-    provider: str = Field(default="ogr", description="Data provider identifier (e.g. ogr, gdal, postgres)"),
-    name: str | None = Field(default=None, description="Name for the element"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    path: Annotated[str, Field(description="File path")],
+    provider: Annotated[str, Field(description="Data provider identifier (e.g. ogr, gdal, postgres)")] = "ogr",
+    name: Annotated[str | None, Field(description="Name for the element")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> list:
     params = {"path": path, "provider": provider}
     if name:
@@ -758,10 +767,10 @@ async def add_vector_layer(
 )
 async def add_raster_layer(
     ctx: Context,
-    path: str = Field(description="File path"),
-    provider: str = Field(default="gdal", description="Data provider identifier (e.g. ogr, gdal, postgres)"),
-    name: str | None = Field(default=None, description="Name for the element"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    path: Annotated[str, Field(description="File path")],
+    provider: Annotated[str, Field(description="Data provider identifier (e.g. ogr, gdal, postgres)")] = "gdal",
+    name: Annotated[str | None, Field(description="Name for the element")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> list:
     params = {"path": path, "provider": provider}
     if name:
@@ -775,7 +784,7 @@ async def add_raster_layer(
     annotations=ToolAnnotations(destructiveHint=True),
     description="Remove a layer from the project by its layer ID. This is irreversible.",
 )
-async def remove_layer(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def remove_layer(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     if not await _confirm_destructive(ctx, f"Remove layer {layer_id}? This cannot be undone."):
         return {"ok": False, "message": "Cancelled by user"}
     return await _send("remove_layer", {"layer_id": layer_id}, instance=instance)
@@ -790,8 +799,8 @@ async def remove_layer(ctx: Context, layer_id: str = Field(description="Layer ID
 )
 async def find_layer(
     ctx: Context,
-    name_pattern: str = Field(description="name pattern for find_layer"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    name_pattern: Annotated[str, Field(description="name pattern for find_layer")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("find_layer", {"name_pattern": name_pattern}, instance=instance)
 
@@ -804,11 +813,11 @@ async def find_layer(
 )
 async def create_memory_layer(
     ctx: Context,
-    name: str = Field(description="Name for the element"),
-    geometry_type: str = Field(description="Geometry type (Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon)"),
-    crs: str = Field(default="EPSG:4326", description="Coordinate reference system (e.g. EPSG:4326)"),
-    fields: list[dict] | None = Field(default=None, description="List of field definitions [{name, type}]"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    name: Annotated[str, Field(description="Name for the element")],
+    geometry_type: Annotated[Literal["Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"], Field(description="Geometry type (Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon)")],
+    crs: Annotated[str, Field(description="Coordinate reference system (e.g. EPSG:4326)")] = "EPSG:4326",
+    fields: Annotated[list[dict] | None, Field(description="List of field definitions [{name, type}]")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> list:
     params = {"name": name, "geometry_type": geometry_type, "crs": crs}
     if fields:
@@ -827,9 +836,9 @@ async def create_memory_layer(
 )
 async def set_layer_visibility(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    visible: bool = Field(description="Whether the layer is visible on the map"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    visible: Annotated[bool, Field(description="Whether the layer is visible on the map")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "set_layer_visibility", {"layer_id": layer_id, "visible": visible}, instance=instance
@@ -841,7 +850,7 @@ async def set_layer_visibility(
     annotations=ToolAnnotations(idempotentHint=True),
     description="Zoom the map canvas to the full extent of the specified layer.",
 )
-async def zoom_to_layer(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def zoom_to_layer(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("zoom_to_layer", {"layer_id": layer_id}, instance=instance)
 
 
@@ -859,12 +868,12 @@ async def zoom_to_layer(ctx: Context, layer_id: str = Field(description="Layer I
 )
 async def get_layer_features(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    limit: int = Field(default=10, description="Maximum number of results to return"),
-    offset: int = Field(default=0, description="Number of results to skip for pagination"),
-    expression: str | None = Field(default=None, description="QGIS expression string"),
-    include_geometry: bool = Field(default=False, description="If true, include WKT geometry in response"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    limit: Annotated[int, Field(description="Maximum number of results to return")] = 10,
+    offset: Annotated[int, Field(description="Number of results to skip for pagination")] = 0,
+    expression: Annotated[str | None, Field(description="QGIS expression string")] = None,
+    include_geometry: Annotated[bool, Field(description="If true, include WKT geometry in response")] = False,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     if limit > 50:
         limit = 50
@@ -896,9 +905,9 @@ async def get_layer_features(
 )
 async def get_field_statistics(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    field_name: str = Field(description="Name of the attribute field"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    field_name: Annotated[str, Field(description="Name of the attribute field")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send(
         "get_field_statistics", {"layer_id": layer_id, "field_name": field_name}, instance=instance
@@ -916,9 +925,9 @@ async def get_field_statistics(
 )
 async def add_features(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    features: list[dict] = Field(description="List of features to add [{attributes: {field: value}, geometry_wkt: '...'}]"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    features: Annotated[list[dict], Field(description="List of features to add [{attributes: {field: value}, geometry_wkt: '...'}]")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "add_features", {"layer_id": layer_id, "features": features}, instance=instance
@@ -933,9 +942,9 @@ async def add_features(
 )
 async def update_features(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    updates: list[dict] = Field(description="List of update dicts [{fid: int, attributes: {field: value}}]"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    updates: Annotated[list[dict], Field(description="List of update dicts [{fid: int, attributes: {field: value}}]")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "update_features", {"layer_id": layer_id, "updates": updates}, instance=instance
@@ -950,10 +959,10 @@ async def update_features(
 )
 async def delete_features(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    fids: list[int] | None = Field(default=None, description="List of feature IDs to operate on"),
-    expression: str | None = Field(default=None, description="QGIS expression string"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    fids: Annotated[list[int] | None, Field(description="List of feature IDs to operate on")] = None,
+    expression: Annotated[str | None, Field(description="QGIS expression string")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     target = f"fids={fids}" if fids else f"expression='{expression}'"
     if not await _confirm_destructive(ctx, f"Delete features from layer {layer_id} ({target})?"):
@@ -975,9 +984,9 @@ async def delete_features(
 )
 async def update_feature_geometry(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    updates: list[dict] = Field(description="List of update dicts [{fid: int, attributes: {field: value}}]"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    updates: Annotated[list[dict], Field(description="List of update dicts [{fid: int, attributes: {field: value}}]")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "update_feature_geometry", {"layer_id": layer_id, "updates": updates}, instance=instance
@@ -992,7 +1001,7 @@ async def update_feature_geometry(
     description="Open an edit session on a vector layer. Subsequent add/update/delete calls go to "
     "the undoable edit buffer instead of the data source, until commit_edits or rollback_edits.",
 )
-async def start_editing(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def start_editing(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("start_editing", {"layer_id": layer_id}, instance=instance)
 
 
@@ -1000,7 +1009,7 @@ async def start_editing(ctx: Context, layer_id: str = Field(description="Layer I
     title="Commit Edits",
     description="Commit the layer's edit buffer to the data source and close the edit session.",
 )
-async def commit_edits(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def commit_edits(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     await ctx.info(f"Committing edits on layer {layer_id}")
     return await _send("commit_edits", {"layer_id": layer_id}, instance=instance)
 
@@ -1010,7 +1019,7 @@ async def commit_edits(ctx: Context, layer_id: str = Field(description="Layer ID
     annotations=ToolAnnotations(destructiveHint=True),
     description="Discard every uncommitted change on a layer and close the edit session.",
 )
-async def rollback_edits(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def rollback_edits(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     if not await _confirm_destructive(
         ctx, f"Discard all uncommitted edits on layer {layer_id}? This cannot be undone."
     ):
@@ -1026,7 +1035,7 @@ async def rollback_edits(ctx: Context, layer_id: str = Field(description="Layer 
     structured_output=True,
 )
 async def get_edit_status(
-    ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")
+    ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None
 ) -> dict[str, Any]:
     return await _send("get_edit_status", {"layer_id": layer_id}, instance=instance)
 
@@ -1037,7 +1046,7 @@ async def get_edit_status(
     "Returns how many steps were actually undone.",
 )
 async def undo_edits(
-    ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), steps: int = Field(default=1, description="Number of undo/redo steps"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")
+    ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], steps: Annotated[int, Field(description="Number of undo/redo steps")] = 1, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None
 ) -> dict:
     return await _send("undo_edits", {"layer_id": layer_id, "steps": steps}, instance=instance)
 
@@ -1047,7 +1056,7 @@ async def undo_edits(
     description="Redo previously undone edit operations on a layer.",
 )
 async def redo_edits(
-    ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), steps: int = Field(default=1, description="Number of undo/redo steps"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")
+    ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], steps: Annotated[int, Field(description="Number of undo/redo steps")] = 1, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None
 ) -> dict:
     return await _send("redo_edits", {"layer_id": layer_id, "steps": steps}, instance=instance)
 
@@ -1062,10 +1071,10 @@ async def redo_edits(
 )
 async def select_features(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    expression: str | None = Field(default=None, description="QGIS expression string"),
-    fids: list[int] | None = Field(default=None, description="List of feature IDs to operate on"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    expression: Annotated[str | None, Field(description="QGIS expression string")] = None,
+    fids: Annotated[list[int] | None, Field(description="List of feature IDs to operate on")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     params = {"layer_id": layer_id}
     if expression:
@@ -1081,7 +1090,7 @@ async def select_features(
     description="Get the current selection for a layer. Returns feature IDs and count.",
     structured_output=True,
 )
-async def get_selection(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_selection(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_selection", {"layer_id": layer_id}, instance=instance)
 
 
@@ -1090,7 +1099,7 @@ async def get_selection(ctx: Context, layer_id: str = Field(description="Layer I
     annotations=ToolAnnotations(idempotentHint=True),
     description="Clear the selection on a layer.",
 )
-async def clear_selection(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def clear_selection(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("clear_selection", {"layer_id": layer_id}, instance=instance)
 
 
@@ -1106,12 +1115,12 @@ async def clear_selection(ctx: Context, layer_id: str = Field(description="Layer
 )
 async def set_layer_style(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    style_type: str = Field(description="Style renderer type (single, categorized, graduated for vector; singleband_pseudocolor, singleband_gray, multiband_color, hillshade for raster)"),
-    field: str | None = Field(default=None, description="Attribute field name for classification or statistics"),
-    classes: int = Field(default=5, description="Number of classes for graduated or categorized rendering"),
-    color_ramp: str = Field(default="Spectral", description="QGIS color ramp name (e.g. Spectral, Viridis, Blues)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    style_type: Annotated[Literal["single", "categorized", "graduated", "singleband_pseudocolor", "singleband_gray", "multiband_color", "hillshade"], Field(description="Style renderer type (single, categorized, graduated for vector; singleband_pseudocolor, singleband_gray, multiband_color, hillshade for raster)")],
+    field: Annotated[str | None, Field(description="Attribute field name for classification or statistics")] = None,
+    classes: Annotated[int, Field(description="Number of classes for graduated or categorized rendering")] = 5,
+    color_ramp: Annotated[str, Field(description="QGIS color ramp name (e.g. Spectral, Viridis, Blues)")] = "Spectral",
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     params = {
         "layer_id": layer_id,
@@ -1138,24 +1147,24 @@ async def set_layer_style(
 )
 async def set_raster_style(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    style_type: str = Field(description="Style renderer type (single, categorized, graduated for vector; singleband_pseudocolor, singleband_gray, multiband_color, hillshade for raster)"),
-    band: int = Field(default=1, description="Raster band number (1-based)"),
-    color_ramp: str = Field(default="Viridis", description="QGIS color ramp name (e.g. Spectral, Viridis, Blues)"),
-    classes: int = Field(default=5, description="Number of classes for graduated or categorized rendering"),
-    min_value: float | None = Field(default=None, description="Minimum value for raster classification"),
-    max_value: float | None = Field(default=None, description="Maximum value for raster classification"),
-    classification: str = Field(default="continuous", description="Classification mode (continuous, equal_interval, quantile)"),
-    interpolation: str = Field(default="interpolated", description="Color interpolation (interpolated, discrete, exact)"),
-    gradient: str = Field(default="black_to_white", description="Gradient direction for gray renderer (black_to_white, white_to_black)"),
-    contrast: str = Field(default="stretch", description="Contrast enhancement (none, stretch, clip, stretch_clip)"),
-    red_band: int = Field(default=1, description="Red channel band number (1-based)"),
-    green_band: int = Field(default=2, description="Green channel band number (1-based)"),
-    blue_band: int = Field(default=3, description="Blue channel band number (1-based)"),
-    azimuth: float = Field(default=315.0, description="Hillshade light azimuth in degrees (0-360)"),
-    altitude: float = Field(default=45.0, description="Hillshade light altitude in degrees (0-90)"),
-    z_factor: float = Field(default=1.0, description="Vertical exaggeration factor for hillshade"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    style_type: Annotated[Literal["single", "categorized", "graduated", "singleband_pseudocolor", "singleband_gray", "multiband_color", "hillshade"], Field(description="Style renderer type (single, categorized, graduated for vector; singleband_pseudocolor, singleband_gray, multiband_color, hillshade for raster)")],
+    band: Annotated[int, Field(description="Raster band number (1-based)")] = 1,
+    color_ramp: Annotated[str, Field(description="QGIS color ramp name (e.g. Spectral, Viridis, Blues)")] = "Viridis",
+    classes: Annotated[int, Field(description="Number of classes for graduated or categorized rendering")] = 5,
+    min_value: Annotated[float | None, Field(description="Minimum value for raster classification")] = None,
+    max_value: Annotated[float | None, Field(description="Maximum value for raster classification")] = None,
+    classification: Annotated[Literal["continuous", "equal_interval", "quantile"], Field(description="Classification mode (continuous, equal_interval, quantile)")] = "continuous",
+    interpolation: Annotated[Literal["interpolated", "discrete", "exact"], Field(description="Color interpolation (interpolated, discrete, exact)")] = "interpolated",
+    gradient: Annotated[Literal["black_to_white", "white_to_black"], Field(description="Gradient direction for gray renderer (black_to_white, white_to_black)")] = "black_to_white",
+    contrast: Annotated[Literal["none", "stretch", "clip", "stretch_clip"], Field(description="Contrast enhancement (none, stretch, clip, stretch_clip)")] = "stretch",
+    red_band: Annotated[int, Field(description="Red channel band number (1-based)")] = 1,
+    green_band: Annotated[int, Field(description="Green channel band number (1-based)")] = 2,
+    blue_band: Annotated[int, Field(description="Blue channel band number (1-based)")] = 3,
+    azimuth: Annotated[float, Field(description="Hillshade light azimuth in degrees (0-360)")] = 315.0,
+    altitude: Annotated[float, Field(description="Hillshade light altitude in degrees (0-90)")] = 45.0,
+    z_factor: Annotated[float, Field(description="Vertical exaggeration factor for hillshade")] = 1.0,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "set_raster_style",
@@ -1191,7 +1200,7 @@ async def set_raster_style(
     description="Get the current map canvas extent and CRS.",
     structured_output=True,
 )
-async def get_canvas_extent(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_canvas_extent(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_canvas_extent", instance=instance)
 
 
@@ -1202,12 +1211,12 @@ async def get_canvas_extent(ctx: Context, instance: str | None = Field(default=N
 )
 async def set_canvas_extent(
     ctx: Context,
-    xmin: float = Field(description="Minimum X coordinate (easting/longitude)"),
-    ymin: float = Field(description="Minimum Y coordinate (northing/latitude)"),
-    xmax: float = Field(description="Maximum X coordinate (easting/longitude)"),
-    ymax: float = Field(description="Maximum Y coordinate (northing/latitude)"),
-    crs: str | None = Field(default=None, description="Coordinate reference system (e.g. EPSG:4326)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    xmin: Annotated[float, Field(description="Minimum X coordinate (easting/longitude)")],
+    ymin: Annotated[float, Field(description="Minimum Y coordinate (northing/latitude)")],
+    xmax: Annotated[float, Field(description="Maximum X coordinate (easting/longitude)")],
+    ymax: Annotated[float, Field(description="Maximum Y coordinate (northing/latitude)")],
+    crs: Annotated[str | None, Field(description="Coordinate reference system (e.g. EPSG:4326)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     params = {"xmin": xmin, "ymin": ymin, "xmax": xmax, "ymax": ymax}
     if crs:
@@ -1221,7 +1230,7 @@ async def set_canvas_extent(
     description="Grab a fast screenshot of the current map canvas widget (no re-render). "
     "Returns the image inline. Much faster than render_map.",
 )
-async def get_canvas_screenshot(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> list:
+async def get_canvas_screenshot(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> list:
     result = await _send("get_canvas_screenshot", instance=instance)
     return [
         ImageContent(
@@ -1247,12 +1256,12 @@ async def get_canvas_screenshot(ctx: Context, instance: str | None = Field(defau
 )
 async def get_3d_screenshot(
     ctx: Context,
-    view_index: int = Field(default=0, description="Index of the 3D map view (0 for first view)"),
-    dpi: int = Field(default=96, description="Dots per inch for output resolution"),
-    pitch: float | None = Field(default=None, description="Camera pitch in degrees (0=top-down, 90=horizontal)"),
-    distance: float | None = Field(default=None, description="Camera distance in map units"),
-    heading: float | None = Field(default=None, description="Camera heading in compass degrees"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    view_index: Annotated[int, Field(description="Index of the 3D map view (0 for first view)")] = 0,
+    dpi: Annotated[int, Field(description="Dots per inch for output resolution")] = 96,
+    pitch: Annotated[float | None, Field(description="Camera pitch in degrees (0=top-down, 90=horizontal)")] = None,
+    distance: Annotated[float | None, Field(description="Camera distance in map units")] = None,
+    heading: Annotated[float | None, Field(description="Camera heading in compass degrees")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> list:
     params: dict[str, Any] = {"view_index": view_index, "dpi": dpi}
     if pitch is not None:
@@ -1283,8 +1292,8 @@ async def get_3d_screenshot(
 )
 async def get_raster_info(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("get_raster_info", {"layer_id": layer_id}, instance=instance)
 
@@ -1301,10 +1310,10 @@ async def get_raster_info(
 )
 async def execute_processing(
     ctx: Context,
-    algorithm: str = Field(description="Processing algorithm ID (e.g. native:buffer)"),
-    parameters: dict = Field(description="Algorithm parameters as {param_name: value} dict"),
-    timeout: int | None = Field(default=None, description="Timeout in seconds before cancelling the algorithm"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    algorithm: Annotated[str, Field(description="Processing algorithm ID (e.g. native:buffer)")],
+    parameters: Annotated[dict, Field(description="Algorithm parameters as {param_name: value} dict")],
+    timeout: Annotated[int | None, Field(description="Timeout in seconds before cancelling the algorithm")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     await ctx.info(f"Running algorithm: {algorithm}")
     await ctx.report_progress(0, 100)
@@ -1336,9 +1345,9 @@ async def execute_processing(
 )
 async def list_processing_algorithms(
     ctx: Context,
-    search: str | None = Field(default=None, description="Search keyword to filter algorithms"),
-    provider: str | None = Field(default=None, description="Data provider identifier (e.g. ogr, gdal, postgres)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    search: Annotated[str | None, Field(description="Search keyword to filter algorithms")] = None,
+    provider: Annotated[str | None, Field(description="Data provider identifier (e.g. ogr, gdal, postgres)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     params = {}
     if search:
@@ -1357,8 +1366,8 @@ async def list_processing_algorithms(
 )
 async def get_algorithm_help(
     ctx: Context,
-    algorithm_id: str = Field(description="Full algorithm ID (e.g. native:buffer)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    algorithm_id: Annotated[str, Field(description="Full algorithm ID (e.g. native:buffer)")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("get_algorithm_help", {"algorithm_id": algorithm_id}, instance=instance)
 
@@ -1391,13 +1400,13 @@ async def get_algorithm_help(
 )
 async def create_processing_model(
     ctx: Context,
-    name: str = Field(description="Name for the element"),
-    steps: list[dict] = Field(description="Number of undo/redo steps"),
-    inputs: list[dict] | None = Field(default=None, description="List of model input definitions [{name, type, description, default, optional}]"),
-    outputs: list[dict] | None = Field(default=None, description="List of model output definitions [{name, from_step, from_output}]"),
-    description: str = Field(default="", description="Description of the model or function"),
-    group: str = Field(default="Models", description="Group name for organization"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    name: Annotated[str, Field(description="Name for the element")],
+    steps: Annotated[list[dict], Field(description="Number of undo/redo steps")],
+    inputs: Annotated[list[dict] | None, Field(description="List of model input definitions [{name, type, description, default, optional}]")] = None,
+    outputs: Annotated[list[dict] | None, Field(description="List of model output definitions [{name, from_step, from_output}]")] = None,
+    description: Annotated[str, Field(description="Description of the model or function")] = "",
+    group: Annotated[str, Field(description="Group name for organization")] = "Models",
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     await ctx.info(f"Building Processing model: {name} ({len(steps)} step(s))")
     params: dict[str, Any] = {
@@ -1420,7 +1429,7 @@ async def create_processing_model(
     "Returns id, name, group for each. Use run_model to execute one.",
     structured_output=True,
 )
-async def list_processing_models(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def list_processing_models(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("list_processing_models", instance=instance)
 
 
@@ -1432,9 +1441,9 @@ async def list_processing_models(ctx: Context, instance: str | None = Field(defa
 )
 async def run_model(
     ctx: Context,
-    model: str = Field(description="Model ID (e.g. model:myflow) or .model3 file path"),
-    parameters: dict | None = Field(default=None, description="Algorithm parameters as {param_name: value} dict"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    model: Annotated[str, Field(description="Model ID (e.g. model:myflow) or .model3 file path")],
+    parameters: Annotated[dict | None, Field(description="Algorithm parameters as {param_name: value} dict")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     await ctx.info(f"Running model: {model}")
     await ctx.report_progress(0, 100)
@@ -1455,7 +1464,7 @@ async def run_model(
     "algorithm counts and active status. Use to diagnose missing algorithms.",
     structured_output=True,
 )
-async def get_processing_providers(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_processing_providers(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_processing_providers", instance=instance)
 
 
@@ -1467,9 +1476,9 @@ async def get_processing_providers(ctx: Context, instance: str | None = Field(de
 )
 async def execute_processing_batch(
     ctx: Context,
-    algorithm: str = Field(description="Processing algorithm ID (e.g. native:buffer)"),
-    parameters_list: list[dict] = Field(description="List of parameter dicts, one per batch run"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    algorithm: Annotated[str, Field(description="Processing algorithm ID (e.g. native:buffer)")],
+    parameters_list: Annotated[list[dict], Field(description="List of parameter dicts, one per batch run")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     await ctx.info(f"Batch processing {algorithm}: {len(parameters_list)} run(s)")
     return await _send(
@@ -1492,10 +1501,10 @@ async def execute_processing_batch(
 )
 async def raster_calculator(
     ctx: Context,
-    expression: str = Field(description="QGIS expression string"),
-    output_path: str = Field(description="Output file path (format inferred from extension)"),
-    reference_layer: str | None = Field(default=None, description="Layer ID or name for raster calculator grid/extent"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    expression: Annotated[str, Field(description="QGIS expression string")],
+    output_path: Annotated[str, Field(description="Output file path (format inferred from extension)")],
+    reference_layer: Annotated[str | None, Field(description="Layer ID or name for raster calculator grid/extent")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     await ctx.info("Computing raster expression...")
     return await _send(
@@ -1515,13 +1524,13 @@ async def raster_calculator(
 )
 async def zonal_statistics(
     ctx: Context,
-    polygon_layer: str = Field(description="Polygon layer ID or name for zonal stats"),
-    raster_layer: str = Field(description="Raster layer ID or name"),
-    band: int = Field(default=1, description="Raster band number (1-based)"),
-    prefix: str = Field(default="_", description="Prefix for joined field names"),
-    stats: list[int] | None = Field(default=None, description="Statistics codes as int list (0=count, 1=sum, 2=mean, 3=median, 4=stdev, 5=min, 6=max)"),
-    output_path: str | None = Field(default=None, description="Output file path (format inferred from extension)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    polygon_layer: Annotated[str, Field(description="Polygon layer ID or name for zonal stats")],
+    raster_layer: Annotated[str, Field(description="Raster layer ID or name")],
+    band: Annotated[int, Field(description="Raster band number (1-based)")] = 1,
+    prefix: Annotated[str, Field(description="Prefix for joined field names")] = "_",
+    stats: Annotated[list[int] | None, Field(description="Statistics codes as int list (0=count, 1=sum, 2=mean, 3=median, 4=stdev, 5=min, 6=max)")] = None,
+    output_path: Annotated[str | None, Field(description="Output file path (format inferred from extension)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     await ctx.info("Computing zonal statistics...")
     return await _send(
@@ -1548,10 +1557,10 @@ async def zonal_statistics(
 )
 async def sample_raster_values(
     ctx: Context,
-    raster_layer: str = Field(description="Raster layer ID or name"),
-    points: list[list[float]] = Field(description="List of [x, y] coordinate pairs in the raster CRS"),
-    band: int | None = Field(default=None, description="Raster band number (1-based)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    raster_layer: Annotated[str, Field(description="Raster layer ID or name")],
+    points: Annotated[list[list[float]], Field(description="List of [x, y] coordinate pairs in the raster CRS")],
+    band: Annotated[int | None, Field(description="Raster band number (1-based)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send(
         "sample_raster_values",
@@ -1572,11 +1581,11 @@ async def sample_raster_values(
 )
 async def export_layer(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    output_path: str = Field(description="Output file path (format inferred from extension)"),
-    target_crs: str | None = Field(default=None, description="Target coordinate reference system (e.g. EPSG:3857)"),
-    filter_expression: str | None = Field(default=None, description="QGIS expression to filter atlas features"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    output_path: Annotated[str, Field(description="Output file path (format inferred from extension)")],
+    target_crs: Annotated[str | None, Field(description="Target coordinate reference system (e.g. EPSG:3857)")] = None,
+    filter_expression: Annotated[str | None, Field(description="QGIS expression to filter atlas features")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     await ctx.info(f"Exporting layer to {output_path}")
     return await _send(
@@ -1603,13 +1612,13 @@ async def export_layer(
 )
 async def field_calculator(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    field_name: str = Field(description="Name of the attribute field"),
-    expression: str = Field(description="QGIS expression string"),
-    field_type: str = Field(default="double", description="Field data type (string, int, double, bool, date, datetime)"),
-    length: int = Field(default=0, description="Maximum field length in characters (0 for unlimited)"),
-    precision: int = Field(default=0, description="Decimal precision for numeric fields (0 for default)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    field_name: Annotated[str, Field(description="Name of the attribute field")],
+    expression: Annotated[str, Field(description="QGIS expression string")],
+    field_type: Annotated[str, Field(description="Field data type (string, int, double, bool, date, datetime)")] = "double",
+    length: Annotated[int, Field(description="Maximum field length in characters (0 for unlimited)")] = 0,
+    precision: Annotated[int, Field(description="Decimal precision for numeric fields (0 for default)")] = 0,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "field_calculator",
@@ -1633,10 +1642,10 @@ async def field_calculator(
 )
 async def get_unique_values(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    field: str = Field(description="Attribute field name for classification or statistics"),
-    limit: int = Field(default=1000, description="Maximum number of results to return"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    field: Annotated[str, Field(description="Attribute field name for classification or statistics")],
+    limit: Annotated[int, Field(description="Maximum number of results to return")] = 1000,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send(
         "get_unique_values",
@@ -1655,14 +1664,14 @@ async def get_unique_values(
 )
 async def spatial_join(
     ctx: Context,
-    target_layer: str = Field(description="Target layer ID for join"),
-    join_layer: str = Field(description="Join layer ID for spatial join"),
-    predicates: list[int] | None = Field(default=None, description="Spatial predicates as int list (0=intersects, 1=contains, 2=equals, 3=touches, 4=overlaps, 5=within, 6=crosses)"),
-    join_fields: list[str] | None = Field(default=None, description="List of field names to copy from join layer (omit for all)"),
-    method: int = Field(default=1, description="Join method (0=one-to-many, 1=first match, 2=largest overlap)"),
-    prefix: str = Field(default="", description="Prefix for joined field names"),
-    output_path: str | None = Field(default=None, description="Output file path (format inferred from extension)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    target_layer: Annotated[str, Field(description="Target layer ID for join")],
+    join_layer: Annotated[str, Field(description="Join layer ID for spatial join")],
+    predicates: Annotated[list[int] | None, Field(description="Spatial predicates as int list (0=intersects, 1=contains, 2=equals, 3=touches, 4=overlaps, 5=within, 6=crosses)")] = None,
+    join_fields: Annotated[list[str] | None, Field(description="List of field names to copy from join layer (omit for all)")] = None,
+    method: Annotated[int, Field(description="Join method (0=one-to-many, 1=first match, 2=largest overlap)")] = 1,
+    prefix: Annotated[str, Field(description="Prefix for joined field names")] = "",
+    output_path: Annotated[str | None, Field(description="Output file path (format inferred from extension)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     await ctx.info("Joining attributes by location...")
     return await _send(
@@ -1692,10 +1701,10 @@ async def spatial_join(
 )
 async def render_map(
     ctx: Context,
-    width: int = Field(default=800, description="Width in pixels or millimeters depending on context"),
-    height: int = Field(default=600, description="Height in pixels or millimeters depending on context"),
-    path: str | None = Field(default=None, description="File path"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    width: Annotated[int, Field(description="Width in pixels or millimeters depending on context")] = 800,
+    height: Annotated[int, Field(description="Height in pixels or millimeters depending on context")] = 600,
+    path: Annotated[str | None, Field(description="File path")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> list:
     await ctx.info("Rendering map...")
     await ctx.report_progress(0, 100)
@@ -1717,7 +1726,7 @@ async def render_map(
     description="Execute arbitrary PyQGIS code. Use for operations not covered by other tools. "
     "Has access to QgsProject, iface, and core QGIS classes. Returns stdout/stderr.",
 )
-async def execute_code(ctx: Context, code: str = Field(description="PyQGIS code to execute"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def execute_code(ctx: Context, code: Annotated[str, Field(description="PyQGIS code to execute")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     if not await _confirm_destructive(
         ctx, "Execute arbitrary PyQGIS code? This can modify your project and system."
     ):
@@ -1738,7 +1747,7 @@ async def execute_code(ctx: Context, code: str = Field(description="PyQGIS code 
     description="Get the currently active (selected) layer in the QGIS layer panel.",
     structured_output=True,
 )
-async def get_active_layer(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_active_layer(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_active_layer", instance=instance)
 
 
@@ -1747,7 +1756,7 @@ async def get_active_layer(ctx: Context, instance: str | None = Field(default=No
     annotations=ToolAnnotations(idempotentHint=True),
     description="Set the active layer in the QGIS layer panel by layer ID.",
 )
-async def set_active_layer(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def set_active_layer(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("set_active_layer", {"layer_id": layer_id}, instance=instance)
 
 
@@ -1757,7 +1766,7 @@ async def set_active_layer(ctx: Context, layer_id: str = Field(description="Laye
     description="Get the current map canvas scale, rotation, and magnification factor.",
     structured_output=True,
 )
-async def get_canvas_scale(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_canvas_scale(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_canvas_scale", instance=instance)
 
 
@@ -1769,9 +1778,9 @@ async def get_canvas_scale(ctx: Context, instance: str | None = Field(default=No
 )
 async def set_canvas_scale(
     ctx: Context,
-    scale: float | None = Field(default=None, description="Scale denominator (e.g. 50000 for 1:50000)"),
-    rotation: float | None = Field(default=None, description="Rotation angle in degrees (0-360)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    scale: Annotated[float | None, Field(description="Scale denominator (e.g. 50000 for 1:50000)")] = None,
+    rotation: Annotated[float | None, Field(description="Rotation angle in degrees (0-360)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     params: dict[str, Any] = {}
     if scale is not None:
@@ -1789,8 +1798,8 @@ async def set_canvas_scale(
 )
 async def get_layer_labeling(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("get_layer_labeling", {"layer_id": layer_id}, instance=instance)
 
@@ -1803,12 +1812,12 @@ async def get_layer_labeling(
 )
 async def set_layer_labeling(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    enabled: bool = Field(default=True, description="Whether labeling is enabled"),
-    field_name: str | None = Field(default=None, description="Name of the attribute field"),
-    font_size: float | None = Field(default=None, description="Font size in points"),
-    color: str | None = Field(default=None, description="Color as hex (#RRGGBB) or named color"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    enabled: Annotated[bool, Field(description="Whether labeling is enabled")] = True,
+    field_name: Annotated[str | None, Field(description="Name of the attribute field")] = None,
+    font_size: Annotated[float | None, Field(description="Font size in points")] = None,
+    color: Annotated[str | None, Field(description="Color as hex (#RRGGBB) or named color")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     params: dict[str, Any] = {"layer_id": layer_id, "enabled": enabled}
     if field_name is not None:
@@ -1827,7 +1836,7 @@ async def set_layer_labeling(
     "whether geographic, and PROJ4 string.",
     structured_output=True,
 )
-async def get_layer_crs(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_layer_crs(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_layer_crs", {"layer_id": layer_id}, instance=instance)
 
 
@@ -1836,7 +1845,7 @@ async def get_layer_crs(ctx: Context, layer_id: str = Field(description="Layer I
     description="Set the CRS of a layer (e.g. 'EPSG:4326'). This does NOT reproject data - "
     "it only changes how the layer's coordinates are interpreted.",
 )
-async def set_layer_crs(ctx: Context, layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"), crs: str = Field(description="Coordinate reference system (e.g. EPSG:4326)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def set_layer_crs(ctx: Context, layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")], crs: Annotated[str, Field(description="Coordinate reference system (e.g. EPSG:4326)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("set_layer_crs", {"layer_id": layer_id, "crs": crs}, instance=instance)
 
 
@@ -1847,7 +1856,7 @@ async def set_layer_crs(ctx: Context, layer_id: str = Field(description="Layer I
     "extent (xmin/ymin/xmax/ymax), and CRS.",
     structured_output=True,
 )
-async def get_bookmarks(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_bookmarks(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_bookmarks", instance=instance)
 
 
@@ -1858,14 +1867,14 @@ async def get_bookmarks(ctx: Context, instance: str | None = Field(default=None,
 )
 async def add_bookmark(
     ctx: Context,
-    name: str = Field(description="Name for the element"),
-    xmin: float = Field(description="Minimum X coordinate (easting/longitude)"),
-    ymin: float = Field(description="Minimum Y coordinate (northing/latitude)"),
-    xmax: float = Field(description="Maximum X coordinate (easting/longitude)"),
-    ymax: float = Field(description="Maximum Y coordinate (northing/latitude)"),
-    crs: str = Field(default="EPSG:4326", description="Coordinate reference system (e.g. EPSG:4326)"),
-    group: str = Field(default="", description="Group name for organization"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    name: Annotated[str, Field(description="Name for the element")],
+    xmin: Annotated[float, Field(description="Minimum X coordinate (easting/longitude)")],
+    ymin: Annotated[float, Field(description="Minimum Y coordinate (northing/latitude)")],
+    xmax: Annotated[float, Field(description="Maximum X coordinate (easting/longitude)")],
+    ymax: Annotated[float, Field(description="Maximum Y coordinate (northing/latitude)")],
+    crs: Annotated[str, Field(description="Coordinate reference system (e.g. EPSG:4326)")] = "EPSG:4326",
+    group: Annotated[str, Field(description="Group name for organization")] = "",
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "add_bookmark",
@@ -1887,7 +1896,7 @@ async def add_bookmark(
     annotations=ToolAnnotations(destructiveHint=True),
     description="Remove a spatial bookmark by its ID.",
 )
-async def remove_bookmark(ctx: Context, bookmark_id: str = Field(description="Spatial bookmark ID to remove"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def remove_bookmark(ctx: Context, bookmark_id: Annotated[str, Field(description="Spatial bookmark ID to remove")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("remove_bookmark", {"bookmark_id": bookmark_id}, instance=instance)
 
 
@@ -1897,7 +1906,7 @@ async def remove_bookmark(ctx: Context, bookmark_id: str = Field(description="Sp
     description="Get map themes (visibility presets). Each theme stores which layers are visible.",
     structured_output=True,
 )
-async def get_map_themes(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_map_themes(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_map_themes", instance=instance)
 
 
@@ -1906,7 +1915,7 @@ async def get_map_themes(ctx: Context, instance: str | None = Field(default=None
     description="Create a map theme from the current layer visibility state. "
     "If a theme with this name exists, it will be updated.",
 )
-async def add_map_theme(ctx: Context, name: str = Field(description="Name for the element"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def add_map_theme(ctx: Context, name: Annotated[str, Field(description="Name for the element")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("add_map_theme", {"name": name}, instance=instance)
 
 
@@ -1915,7 +1924,7 @@ async def add_map_theme(ctx: Context, name: str = Field(description="Name for th
     annotations=ToolAnnotations(destructiveHint=True),
     description="Remove a map theme by name.",
 )
-async def remove_map_theme(ctx: Context, name: str = Field(description="Name for the element"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def remove_map_theme(ctx: Context, name: Annotated[str, Field(description="Name for the element")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("remove_map_theme", {"name": name}, instance=instance)
 
 
@@ -1924,7 +1933,7 @@ async def remove_map_theme(ctx: Context, name: str = Field(description="Name for
     annotations=ToolAnnotations(idempotentHint=True),
     description="Apply a map theme - restores the layer visibility state saved in the theme.",
 )
-async def apply_map_theme(ctx: Context, name: str = Field(description="Name for the element"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def apply_map_theme(ctx: Context, name: Annotated[str, Field(description="Name for the element")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("apply_map_theme", {"name": name}, instance=instance)
 
 
@@ -1933,7 +1942,7 @@ async def apply_map_theme(ctx: Context, name: str = Field(description="Name for 
     description="Set the project coordinate reference system (e.g. 'EPSG:4326', 'EPSG:3857'). "
     "This changes how layers are projected on the map canvas.",
 )
-async def set_project_crs(ctx: Context, crs: str = Field(description="Coordinate reference system (e.g. EPSG:4326)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> list:
+async def set_project_crs(ctx: Context, crs: Annotated[str, Field(description="Coordinate reference system (e.g. EPSG:4326)")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> list:
     result = await _send("set_project_crs", {"crs": crs}, instance=instance)
     return make_project_response(result)
 
@@ -1949,7 +1958,7 @@ async def set_project_crs(ctx: Context, crs: str = Field(description="Coordinate
     "are not allowed in batch - use them individually.",
 )
 async def batch_commands(
-    ctx: Context, commands: list[dict] = Field(description="List of command dicts [{type: str, params: dict}]"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")
+    ctx: Context, commands: Annotated[list[dict], Field(description="List of command dicts [{type: str, params: dict}]")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None
 ) -> list[dict[str, Any]]:
     for cmd in commands:
         cmd_type = cmd.get("type", "")
@@ -1970,7 +1979,7 @@ async def batch_commands(
     description="List all print layouts in the current project with names and page counts.",
     structured_output=True,
 )
-async def list_layouts(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def list_layouts(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("list_layouts", instance=instance)
 
 
@@ -1982,11 +1991,11 @@ async def list_layouts(ctx: Context, instance: str | None = Field(default=None, 
 )
 async def export_layout(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    path: str = Field(description="File path"),
-    format: str = Field(default="pdf", description="Output format (e.g. pdf, png, jpg, svg)"),
-    dpi: int = Field(default=300, description="Dots per inch for output resolution"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    path: Annotated[str, Field(description="File path")],
+    format: Annotated[Literal["pdf", "png", "jpg", "svg"], Field(description="Output format (e.g. pdf, png, jpg, svg)")] = "pdf",
+    dpi: Annotated[int, Field(description="Dots per inch for output resolution")] = 300,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "export_layout",
@@ -2012,10 +2021,10 @@ async def export_layout(
 )
 async def get_message_log(
     ctx: Context,
-    level: str | None = Field(default=None, description="Message log level filter (info, warning, critical)"),
-    tag: str | None = Field(default=None, description="Log message tag filter"),
-    limit: int = Field(default=100, description="Maximum number of results to return"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    level: Annotated[str | None, Field(description="Message log level filter (info, warning, critical)")] = None,
+    tag: Annotated[str | None, Field(description="Log message tag filter")] = None,
+    limit: Annotated[int, Field(description="Maximum number of results to return")] = 100,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     params = {"limit": limit}
     if level:
@@ -2037,8 +2046,8 @@ async def get_message_log(
 )
 async def list_plugins(
     ctx: Context,
-    enabled_only: bool = Field(default=False, description="If true, list only enabled plugins"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    enabled_only: Annotated[bool, Field(description="If true, list only enabled plugins")] = False,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("list_plugins", {"enabled_only": enabled_only}, instance=instance)
 
@@ -2051,8 +2060,8 @@ async def list_plugins(
 )
 async def get_plugin_info(
     ctx: Context,
-    plugin_name: str = Field(description="Plugin name"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    plugin_name: Annotated[str, Field(description="Plugin name")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("get_plugin_info", {"plugin_name": plugin_name}, instance=instance)
 
@@ -2063,7 +2072,7 @@ async def get_plugin_info(
     description="Reload a QGIS plugin by name. Cannot reload the MCP plugin itself. "
     "Useful during plugin development.",
 )
-async def reload_plugin(ctx: Context, plugin_name: str = Field(description="Plugin name"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def reload_plugin(ctx: Context, plugin_name: Annotated[str, Field(description="Plugin name")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     await ctx.info(f"Reloading plugin: {plugin_name}")
     return await _send("reload_plugin", {"plugin_name": plugin_name}, instance=instance)
 
@@ -2078,7 +2087,7 @@ async def reload_plugin(ctx: Context, plugin_name: str = Field(description="Plug
     "Returns recursive tree with type, name, visibility, and children.",
     structured_output=True,
 )
-async def get_layer_tree(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_layer_tree(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_layer_tree", instance=instance)
 
 
@@ -2089,9 +2098,9 @@ async def get_layer_tree(ctx: Context, instance: str | None = Field(default=None
 )
 async def create_layer_group(
     ctx: Context,
-    name: str = Field(description="Name for the element"),
-    parent: str | None = Field(default=None, description="Parent group name (omit for root level)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    name: Annotated[str, Field(description="Name for the element")],
+    parent: Annotated[str | None, Field(description="Parent group name (omit for root level)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     params = {"name": name}
     if parent:
@@ -2102,9 +2111,9 @@ async def create_layer_group(
 @mcp.tool(title="Move Layer to Group", description="Move a layer into a layer group by group name.")
 async def move_layer_to_group(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    group_name: str = Field(description="Name of the target layer group"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    group_name: Annotated[str, Field(description="Name of the target layer group")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "move_layer_to_group", {"layer_id": layer_id, "group_name": group_name}, instance=instance
@@ -2122,10 +2131,10 @@ async def move_layer_to_group(
 )
 async def set_layer_property(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    property: str = Field(description="Layer property name (opacity, name, min_scale, max_scale, scale_visibility)"),
-    value: str = Field(description="Value to set"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    property: Annotated[str, Field(description="Layer property name (opacity, name, min_scale, max_scale, scale_visibility)")],
+    value: Annotated[str, Field(description="Value to set")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "set_layer_property",
@@ -2142,8 +2151,8 @@ async def set_layer_property(
 )
 async def get_layer_extent(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("get_layer_extent", {"layer_id": layer_id}, instance=instance)
 
@@ -2157,7 +2166,7 @@ async def get_layer_extent(
     description="Get all project-level variables (key-value pairs set in Project Properties).",
     structured_output=True,
 )
-async def get_project_variables(ctx: Context, instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_project_variables(ctx: Context, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_project_variables", instance=instance)
 
 
@@ -2168,9 +2177,9 @@ async def get_project_variables(ctx: Context, instance: str | None = Field(defau
 )
 async def set_project_variable(
     ctx: Context,
-    key: str = Field(description="Setting key path"),
-    value: str = Field(description="Value to set"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    key: Annotated[str, Field(description="Setting key path")],
+    value: Annotated[str, Field(description="Value to set")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send("set_project_variable", {"key": key, "value": value}, instance=instance)
 
@@ -2187,9 +2196,9 @@ async def set_project_variable(
 )
 async def validate_expression(
     ctx: Context,
-    expression: str = Field(description="QGIS expression string"),
-    layer_id: str | None = Field(default=None, description="Layer ID (obtain from get_layers or find_layer)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    expression: Annotated[str, Field(description="QGIS expression string")],
+    layer_id: Annotated[str | None, Field(description="Layer ID (obtain from get_layers or find_layer)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     params = {"expression": expression}
     if layer_id:
@@ -2206,7 +2215,7 @@ async def validate_expression(
     description="Read a QGIS setting by key path (e.g. 'qgis/sketching/sketching_enabled').",
     structured_output=True,
 )
-async def get_setting(ctx: Context, key: str = Field(description="Setting key path"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict[str, Any]:
+async def get_setting(ctx: Context, key: Annotated[str, Field(description="Setting key path")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict[str, Any]:
     return await _send("get_setting", {"key": key}, instance=instance)
 
 
@@ -2215,7 +2224,7 @@ async def get_setting(ctx: Context, key: str = Field(description="Setting key pa
     annotations=ToolAnnotations(destructiveHint=True),
     description="Write a QGIS setting. Use with care - incorrect settings can affect QGIS behavior.",
 )
-async def set_setting(ctx: Context, key: str = Field(description="Setting key path"), value: str = Field(description="Value to set"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def set_setting(ctx: Context, key: Annotated[str, Field(description="Setting key path")], value: Annotated[str, Field(description="Value to set")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     if not await _confirm_destructive(
         ctx, f"Set QGIS setting '{key}'? Incorrect settings can affect behavior."
     ):
@@ -2236,12 +2245,12 @@ async def set_setting(ctx: Context, key: str = Field(description="Setting key pa
 )
 async def transform_coordinates(
     ctx: Context,
-    source_crs: str = Field(description="Source coordinate reference system (e.g. EPSG:4326)"),
-    target_crs: str = Field(description="Target coordinate reference system (e.g. EPSG:3857)"),
-    point: dict | None = Field(default=None, description="Point coordinates as {x, y} dict"),
-    points: list[dict] | None = Field(default=None, description="List of [x, y] coordinate pairs in the raster CRS"),
-    bbox: dict | None = Field(default=None, description="Bounding box as {xmin, ymin, xmax, ymax} dict"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    source_crs: Annotated[str, Field(description="Source coordinate reference system (e.g. EPSG:4326)")],
+    target_crs: Annotated[str, Field(description="Target coordinate reference system (e.g. EPSG:3857)")],
+    point: Annotated[dict | None, Field(description="Point coordinates as {x, y} dict")] = None,
+    points: Annotated[list[dict] | None, Field(description="List of [x, y] coordinate pairs in the raster CRS")] = None,
+    bbox: Annotated[dict | None, Field(description="Bounding box as {xmin, ymin, xmax, ymax} dict")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     params = {"source_crs": source_crs, "target_crs": target_crs}
     if point:
@@ -2265,7 +2274,7 @@ async def transform_coordinates(
     structured_output=True,
 )
 async def list_connections(
-    ctx: Context, provider: str | None = Field(default=None, description="Data provider identifier (e.g. ogr, gdal, postgres)"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")
+    ctx: Context, provider: Annotated[str | None, Field(description="Data provider identifier (e.g. ogr, gdal, postgres)")] = None, instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None
 ) -> dict[str, Any]:
     return await _send("list_connections", {"provider": provider}, instance=instance)
 
@@ -2281,13 +2290,13 @@ async def list_connections(
 )
 async def create_postgresql_connection(
     ctx: Context,
-    name: str = Field(description="Name for the element"),
-    host: str = Field(description="Database host address"),
-    port: int = Field(description="Database port number"),
-    database: str = Field(description="Database name"),
-    auth_config_id: str = Field(description="QGIS Authentication Manager config ID (credentials stored there)"),
-    ssl_mode: str = Field(default="prefer", description="PostgreSQL SSL mode (prefer, disable, allow, require, verify-ca, verify-full)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    name: Annotated[str, Field(description="Name for the element")],
+    host: Annotated[str, Field(description="Database host address")],
+    port: Annotated[int, Field(description="Database port number")],
+    database: Annotated[str, Field(description="Database name")],
+    auth_config_id: Annotated[str, Field(description="QGIS Authentication Manager config ID (credentials stored there)")],
+    ssl_mode: Annotated[str, Field(description="PostgreSQL SSL mode (prefer, disable, allow, require, verify-ca, verify-full)")] = "prefer",
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send(
         "create_postgresql_connection",
@@ -2314,10 +2323,10 @@ async def create_postgresql_connection(
 )
 async def list_connection_tables(
     ctx: Context,
-    provider: str = Field(description="Data provider identifier (e.g. ogr, gdal, postgres)"),
-    connection: str = Field(description="Saved connection name from list_connections"),
-    schema: str | None = Field(default=None, description="Database schema name"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    provider: Annotated[str, Field(description="Data provider identifier (e.g. ogr, gdal, postgres)")],
+    connection: Annotated[str, Field(description="Saved connection name from list_connections")],
+    schema: Annotated[str | None, Field(description="Database schema name")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send(
         "list_connection_tables",
@@ -2334,15 +2343,15 @@ async def list_connection_tables(
 )
 async def add_layer_from_connection(
     ctx: Context,
-    provider: str = Field(description="Data provider identifier (e.g. ogr, gdal, postgres)"),
-    connection: str = Field(description="Saved connection name from list_connections"),
-    table: str | None = Field(default=None, description="Database table name"),
-    schema: str | None = Field(default=None, description="Database schema name"),
-    sql: str | None = Field(default=None, description="SQL query for query layers"),
-    geometry_column: str | None = Field(default=None, description="Name of the geometry column in the database table"),
-    primary_key: str | None = Field(default=None, description="Primary key column name"),
-    name: str | None = Field(default=None, description="Name for the element"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    provider: Annotated[str, Field(description="Data provider identifier (e.g. ogr, gdal, postgres)")],
+    connection: Annotated[str, Field(description="Saved connection name from list_connections")],
+    table: Annotated[str | None, Field(description="Database table name")] = None,
+    schema: Annotated[str | None, Field(description="Database schema name")] = None,
+    sql: Annotated[str | None, Field(description="SQL query for query layers")] = None,
+    geometry_column: Annotated[str | None, Field(description="Name of the geometry column in the database table")] = None,
+    primary_key: Annotated[str | None, Field(description="Primary key column name")] = None,
+    name: Annotated[str | None, Field(description="Name for the element")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> list:
     result = await _send(
         "add_layer_from_connection",
@@ -2370,13 +2379,13 @@ async def add_layer_from_connection(
 )
 async def import_layer_to_connection(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    provider: str = Field(description="Data provider identifier (e.g. ogr, gdal, postgres)"),
-    connection: str = Field(description="Saved connection name from list_connections"),
-    table: str = Field(description="Database table name"),
-    schema: str | None = Field(default=None, description="Database schema name"),
-    overwrite: bool = Field(default=False, description="If true, overwrite existing table"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    provider: Annotated[str, Field(description="Data provider identifier (e.g. ogr, gdal, postgres)")],
+    connection: Annotated[str, Field(description="Saved connection name from list_connections")],
+    table: Annotated[str, Field(description="Database table name")],
+    schema: Annotated[str | None, Field(description="Database schema name")] = None,
+    overwrite: Annotated[bool, Field(description="If true, overwrite existing table")] = False,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     if overwrite and not await _confirm_destructive(
         ctx, f"Overwrite table '{table}' in connection '{connection}'? This cannot be undone."
@@ -2407,11 +2416,11 @@ async def import_layer_to_connection(
 )
 async def execute_connection_sql(
     ctx: Context,
-    provider: str = Field(description="Data provider identifier (e.g. ogr, gdal, postgres)"),
-    connection: str = Field(description="Saved connection name from list_connections"),
-    sql: str = Field(description="SQL query for query layers"),
-    limit: int = Field(default=100, description="Maximum number of results to return"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    provider: Annotated[str, Field(description="Data provider identifier (e.g. ogr, gdal, postgres)")],
+    connection: Annotated[str, Field(description="Saved connection name from list_connections")],
+    sql: Annotated[str, Field(description="SQL query for query layers")],
+    limit: Annotated[int, Field(description="Maximum number of results to return")] = 100,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     if not await _confirm_destructive(ctx, f"Run SQL on connection '{connection}'?\n\n{sql}"):
         return {"ok": False, "message": "Cancelled by user"}
@@ -2433,11 +2442,11 @@ async def execute_connection_sql(
 )
 async def add_web_layer(
     ctx: Context,
-    url: str = Field(description="url for add_web_layer"),
-    service: str = Field(description="service for add_web_layer"),
-    name: str | None = Field(default=None, description="Name for the element"),
-    crs: str | None = Field(default=None, description="Coordinate reference system (e.g. EPSG:4326)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    url: Annotated[str, Field(description="url for add_web_layer")],
+    service: Annotated[str, Field(description="service for add_web_layer")],
+    name: Annotated[str | None, Field(description="Name for the element")] = None,
+    crs: Annotated[str | None, Field(description="Coordinate reference system (e.g. EPSG:4326)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> list:
     params = {"url": url, "service": service}
     if crs:
@@ -2454,12 +2463,12 @@ async def add_web_layer(
 )
 async def add_table_join(
     ctx: Context,
-    target_layer_id: str = Field(description="Target layer ID"),
-    join_layer_id: str = Field(description="Join layer ID"),
-    target_field: str = Field(description="target field for add_table_join"),
-    join_field: str = Field(description="join field for add_table_join"),
-    prefix: str = Field(default="", description="Prefix for joined field names"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    target_layer_id: Annotated[str, Field(description="Target layer ID")],
+    join_layer_id: Annotated[str, Field(description="Join layer ID")],
+    target_field: Annotated[str, Field(description="target field for add_table_join")],
+    join_field: Annotated[str, Field(description="join field for add_table_join")],
+    prefix: Annotated[str, Field(description="Prefix for joined field names")] = "",
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     params = {
         "target_layer_id": target_layer_id,
@@ -2477,12 +2486,12 @@ async def add_table_join(
 )
 async def add_field(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    field_name: str = Field(description="Name of the attribute field"),
-    field_type: str = Field(description="Field data type (string, int, double, bool, date, datetime)"),
-    length: int | None = Field(default=None, description="Maximum field length in characters (0 for unlimited)"),
-    precision: int | None = Field(default=None, description="Decimal precision for numeric fields (0 for default)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    field_name: Annotated[str, Field(description="Name of the attribute field")],
+    field_type: Annotated[str, Field(description="Field data type (string, int, double, bool, date, datetime)")],
+    length: Annotated[int | None, Field(description="Maximum field length in characters (0 for unlimited)")] = None,
+    precision: Annotated[int | None, Field(description="Decimal precision for numeric fields (0 for default)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     params = {
         "layer_id": layer_id,
@@ -2503,9 +2512,9 @@ async def add_field(
 )
 async def delete_field(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    field_name: str = Field(description="Name of the attribute field"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    field_name: Annotated[str, Field(description="Name of the attribute field")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     if not await _confirm_destructive(ctx, f"Delete field '{field_name}' from layer {layer_id}?"):
         return {"ok": False, "message": "Cancelled by user"}
@@ -2520,10 +2529,10 @@ async def delete_field(
 )
 async def rename_field(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    old_name: str = Field(description="Current field name to rename"),
-    new_name: str = Field(description="New field name after rename"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    old_name: Annotated[str, Field(description="Current field name to rename")],
+    new_name: Annotated[str, Field(description="New field name after rename")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "rename_field",
@@ -2538,9 +2547,9 @@ async def rename_field(
 )
 async def apply_style_qml(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    path: str = Field(description="File path"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    path: Annotated[str, Field(description="File path")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send("apply_style_qml", {"layer_id": layer_id, "path": path}, instance=instance)
 
@@ -2551,9 +2560,9 @@ async def apply_style_qml(
 )
 async def save_style_qml(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    path: str = Field(description="File path"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    path: Annotated[str, Field(description="File path")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send("save_style_qml", {"layer_id": layer_id, "path": path}, instance=instance)
 
@@ -2562,7 +2571,7 @@ async def save_style_qml(
     title="Create Layout",
     description="Create a new print layout.",
 )
-async def create_layout(ctx: Context, name: str = Field(description="Name for the element"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def create_layout(ctx: Context, name: Annotated[str, Field(description="Name for the element")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("create_layout", {"name": name}, instance=instance)
 
 
@@ -2572,12 +2581,12 @@ async def create_layout(ctx: Context, name: str = Field(description="Name for th
 )
 async def add_layout_map(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    x: float = Field(description="x for add_layout_map"),
-    y: float = Field(description="y for add_layout_map"),
-    width: float = Field(description="Width in pixels or millimeters depending on context"),
-    height: float = Field(description="Height in pixels or millimeters depending on context"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    x: Annotated[float, Field(description="x for add_layout_map")],
+    y: Annotated[float, Field(description="y for add_layout_map")],
+    width: Annotated[float, Field(description="Width in pixels or millimeters depending on context")],
+    height: Annotated[float, Field(description="Height in pixels or millimeters depending on context")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "add_layout_map",
@@ -2594,8 +2603,8 @@ async def add_layout_map(
 )
 async def get_layout_info(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict[str, Any]:
     return await _send("get_layout_info", {"layout_name": layout_name}, instance=instance)
 
@@ -2607,15 +2616,15 @@ async def get_layout_info(
 )
 async def add_layout_label(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    text: str = Field(description="Text content for the layout label"),
-    x: float = Field(default=10, description="x for add_layout_label"),
-    y: float = Field(default=10, description="y for add_layout_label"),
-    width: float = Field(default=100, description="Width in pixels or millimeters depending on context"),
-    height: float = Field(default=20, description="Height in pixels or millimeters depending on context"),
-    font_size: int = Field(default=12, description="Font size in points"),
-    color: str = Field(default="#000000", description="Color as hex (#RRGGBB) or named color"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    text: Annotated[str, Field(description="Text content for the layout label")],
+    x: Annotated[float, Field(description="x for add_layout_label")] = 10,
+    y: Annotated[float, Field(description="y for add_layout_label")] = 10,
+    width: Annotated[float, Field(description="Width in pixels or millimeters depending on context")] = 100,
+    height: Annotated[float, Field(description="Height in pixels or millimeters depending on context")] = 20,
+    font_size: Annotated[int, Field(description="Font size in points")] = 12,
+    color: Annotated[str, Field(description="Color as hex (#RRGGBB) or named color")] = "#000000",
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "add_layout_label",
@@ -2640,14 +2649,14 @@ async def add_layout_label(
 )
 async def add_layout_legend(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    map_item_id: str | None = Field(default=None, description="Map item UUID in the layout (omit for first map)"),
-    x: float = Field(default=10, description="x for add_layout_legend"),
-    y: float = Field(default=10, description="y for add_layout_legend"),
-    width: float = Field(default=80, description="Width in pixels or millimeters depending on context"),
-    height: float = Field(default=100, description="Height in pixels or millimeters depending on context"),
-    title: str = Field(default="Legend", description="Title text"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    map_item_id: Annotated[str | None, Field(description="Map item UUID in the layout (omit for first map)")] = None,
+    x: Annotated[float, Field(description="x for add_layout_legend")] = 10,
+    y: Annotated[float, Field(description="y for add_layout_legend")] = 10,
+    width: Annotated[float, Field(description="Width in pixels or millimeters depending on context")] = 80,
+    height: Annotated[float, Field(description="Height in pixels or millimeters depending on context")] = 100,
+    title: Annotated[str, Field(description="Title text")] = "Legend",
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "add_layout_legend",
@@ -2671,14 +2680,14 @@ async def add_layout_legend(
 )
 async def add_layout_scalebar(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    map_item_id: str | None = Field(default=None, description="Map item UUID in the layout (omit for first map)"),
-    x: float = Field(default=10, description="x for add_layout_scalebar"),
-    y: float = Field(default=180, description="y for add_layout_scalebar"),
-    width: float = Field(default=80, description="Width in pixels or millimeters depending on context"),
-    height: float = Field(default=20, description="Height in pixels or millimeters depending on context"),
-    style: str = Field(default="Single Box", description="Scale bar style (e.g. Single Box, Double Box, Line Ticks Up, Numeric)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    map_item_id: Annotated[str | None, Field(description="Map item UUID in the layout (omit for first map)")] = None,
+    x: Annotated[float, Field(description="x for add_layout_scalebar")] = 10,
+    y: Annotated[float, Field(description="y for add_layout_scalebar")] = 180,
+    width: Annotated[float, Field(description="Width in pixels or millimeters depending on context")] = 80,
+    height: Annotated[float, Field(description="Height in pixels or millimeters depending on context")] = 20,
+    style: Annotated[str, Field(description="Scale bar style (e.g. Single Box, Double Box, Line Ticks Up, Numeric)")] = "Single Box",
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "add_layout_scalebar",
@@ -2702,13 +2711,13 @@ async def add_layout_scalebar(
 )
 async def add_layout_picture(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    path: str = Field(description="File path"),
-    x: float = Field(default=10, description="x for add_layout_picture"),
-    y: float = Field(default=10, description="y for add_layout_picture"),
-    width: float = Field(default=30, description="Width in pixels or millimeters depending on context"),
-    height: float = Field(default=30, description="Height in pixels or millimeters depending on context"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    path: Annotated[str, Field(description="File path")],
+    x: Annotated[float, Field(description="x for add_layout_picture")] = 10,
+    y: Annotated[float, Field(description="y for add_layout_picture")] = 10,
+    width: Annotated[float, Field(description="Width in pixels or millimeters depending on context")] = 30,
+    height: Annotated[float, Field(description="Height in pixels or millimeters depending on context")] = 30,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "add_layout_picture",
@@ -2731,14 +2740,14 @@ async def add_layout_picture(
 )
 async def add_layout_table(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    x: float = Field(default=10, description="x for add_layout_table"),
-    y: float = Field(default=10, description="y for add_layout_table"),
-    width: float = Field(default=180, description="Width in pixels or millimeters depending on context"),
-    height: float = Field(default=80, description="Height in pixels or millimeters depending on context"),
-    max_rows: int = Field(default=20, description="max rows for add_layout_table"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    x: Annotated[float, Field(description="x for add_layout_table")] = 10,
+    y: Annotated[float, Field(description="y for add_layout_table")] = 10,
+    width: Annotated[float, Field(description="Width in pixels or millimeters depending on context")] = 180,
+    height: Annotated[float, Field(description="Height in pixels or millimeters depending on context")] = 80,
+    max_rows: Annotated[int, Field(description="max rows for add_layout_table")] = 20,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "add_layout_table",
@@ -2762,13 +2771,13 @@ async def add_layout_table(
 )
 async def configure_atlas(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    coverage_layer: str = Field(description="Vector layer ID used as atlas coverage"),
-    enabled: bool = Field(default=True, description="Whether labeling is enabled"),
-    page_name_expression: str | None = Field(default=None, description="QGIS expression to generate page names"),
-    filter_expression: str | None = Field(default=None, description="QGIS expression to filter atlas features"),
-    sort_expression: str | None = Field(default=None, description="QGIS expression to sort atlas features"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    coverage_layer: Annotated[str, Field(description="Vector layer ID used as atlas coverage")],
+    enabled: Annotated[bool, Field(description="Whether labeling is enabled")] = True,
+    page_name_expression: Annotated[str | None, Field(description="QGIS expression to generate page names")] = None,
+    filter_expression: Annotated[str | None, Field(description="QGIS expression to filter atlas features")] = None,
+    sort_expression: Annotated[str | None, Field(description="QGIS expression to sort atlas features")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "configure_atlas",
@@ -2793,11 +2802,11 @@ async def configure_atlas(
 )
 async def export_atlas(
     ctx: Context,
-    layout_name: str = Field(description="Print layout name"),
-    output_path: str = Field(description="Output file path (format inferred from extension)"),
-    format: str = Field(default="pdf", description="Output format (e.g. pdf, png, jpg, svg)"),
-    dpi: int = Field(default=300, description="Dots per inch for output resolution"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layout_name: Annotated[str, Field(description="Print layout name")],
+    output_path: Annotated[str, Field(description="Output file path (format inferred from extension)")],
+    format: Annotated[Literal["pdf", "png", "jpg", "svg"], Field(description="Output format (e.g. pdf, png, jpg, svg)")] = "pdf",
+    dpi: Annotated[int, Field(description="Dots per inch for output resolution")] = 300,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     await ctx.info(f"Exporting atlas '{layout_name}' as {format} to {output_path}")
     return await _send(
@@ -2818,7 +2827,7 @@ async def export_atlas(
     annotations=ToolAnnotations(destructiveHint=True),
     description="Remove a print layout from the project.",
 )
-async def remove_layout(ctx: Context, layout_name: str = Field(description="Print layout name"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def remove_layout(ctx: Context, layout_name: Annotated[str, Field(description="Print layout name")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     if not await _confirm_destructive(ctx, f"Remove layout '{layout_name}'?"):
         return {"ok": False, "message": "Cancelled by user"}
     return await _send("remove_layout", {"layout_name": layout_name}, instance=instance)
@@ -2832,13 +2841,13 @@ async def remove_layout(ctx: Context, layout_name: str = Field(description="Prin
 )
 async def execute_sql(
     ctx: Context,
-    query: str = Field(description="SQL query or search query string"),
-    layers: list[str] | None = Field(default=None, description="layers for execute_sql"),
-    as_layer: bool = Field(default=False, description="If true, register query result as a new map layer"),
-    layer_name: str = Field(default="sql_result", description="Name for the resulting layer"),
-    geometry_field: str | None = Field(default=None, description="Geometry column name for spatial query layers"),
-    uid_field: str | None = Field(default=None, description="Unique ID column for query layers"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    query: Annotated[str, Field(description="SQL query or search query string")],
+    layers: Annotated[list[str] | None, Field(description="layers for execute_sql")] = None,
+    as_layer: Annotated[bool, Field(description="If true, register query result as a new map layer")] = False,
+    layer_name: Annotated[str, Field(description="Name for the resulting layer")] = "sql_result",
+    geometry_field: Annotated[str | None, Field(description="Geometry column name for spatial query layers")] = None,
+    uid_field: Annotated[str | None, Field(description="Unique ID column for query layers")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "execute_sql",
@@ -2864,9 +2873,9 @@ async def execute_sql(
 )
 async def evaluate_expression(
     ctx: Context,
-    expression: str = Field(description="QGIS expression string"),
-    layer_id: str | None = Field(default=None, description="Layer ID (obtain from get_layers or find_layer)"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    expression: Annotated[str, Field(description="QGIS expression string")],
+    layer_id: Annotated[str | None, Field(description="Layer ID (obtain from get_layers or find_layer)")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "evaluate_expression",
@@ -2884,11 +2893,11 @@ async def evaluate_expression(
 )
 async def identify_features(
     ctx: Context,
-    point: list[float] = Field(description="Point coordinates as {x, y} dict"),
-    tolerance: float = Field(default=0.0, description="Search tolerance in map units (0 for exact hit)"),
-    layer_ids: list[str] | None = Field(default=None, description="List of layer IDs in desired order"),
-    limit: int = Field(default=10, description="Maximum number of results to return"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    point: Annotated[list[float], Field(description="Point coordinates as {x, y} dict")],
+    tolerance: Annotated[float, Field(description="Search tolerance in map units (0 for exact hit)")] = 0.0,
+    layer_ids: Annotated[list[str] | None, Field(description="List of layer IDs in desired order")] = None,
+    limit: Annotated[int, Field(description="Maximum number of results to return")] = 10,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "identify_features",
@@ -2908,9 +2917,9 @@ async def identify_features(
 )
 async def duplicate_layer(
     ctx: Context,
-    layer_id: str = Field(description="Layer ID (obtain from get_layers or find_layer)"),
-    new_name: str | None = Field(default=None, description="New field name after rename"),
-    instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)"),
+    layer_id: Annotated[str, Field(description="Layer ID (obtain from get_layers or find_layer)")],
+    new_name: Annotated[str | None, Field(description="New field name after rename")] = None,
+    instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None,
 ) -> dict:
     return await _send(
         "duplicate_layer",
@@ -2927,7 +2936,7 @@ async def duplicate_layer(
     "Clears any custom draw order (it freezes a snapshot list - layers added later would "
     "silently draw behind everything).",
 )
-async def set_layer_order(ctx: Context, layer_ids: list[str] = Field(description="List of layer IDs in desired order"), instance: str | None = Field(default=None, description="QGIS instance name for multi-instance setups (omit for default)")) -> dict:
+async def set_layer_order(ctx: Context, layer_ids: Annotated[list[str], Field(description="List of layer IDs in desired order")], instance: Annotated[str | None, Field(description="QGIS instance name for multi-instance setups (omit for default)")] = None) -> dict:
     return await _send("set_layer_order", {"layer_ids": layer_ids}, instance=instance)
 
 
@@ -3271,7 +3280,7 @@ async def list_templates(ctx: Context) -> list[dict]:
     "The code is verified against real QGIS — adapt names/params to your layers and run via execute_code.",
     structured_output=True,
 )
-async def load_template(ctx: Context, template_id: str = Field(description="Template identifier from list_templates")) -> dict[str, Any]:
+async def load_template(ctx: Context, template_id: Annotated[str, Field(description="Template identifier from list_templates")]) -> dict[str, Any]:
     """Load a template's code.
 
     template_id: id from list_templates (e.g. "buffer_analysis").
@@ -3295,8 +3304,8 @@ async def load_template(ctx: Context, template_id: str = Field(description="Temp
 )
 async def search_qgis_api(
     ctx: Context,
-    query: str = Field(description="SQL query or search query string"),
-    category: str | None = Field(default=None, description="API documentation category to search within"),
+    query: Annotated[str, Field(description="SQL query or search query string")],
+    category: Annotated[str | None, Field(description="API documentation category to search within")] = None,
 ) -> list[dict]:
     """Search PyQGIS API documentation by keyword.
 
@@ -3335,10 +3344,10 @@ async def list_qgis_api_categories(ctx: Context) -> list[dict]:
 )
 async def qgis_function_registry_query(
     ctx: Context,
-    function_path: str | None = Field(default=None, description="Fully qualified PyQGIS function path (e.g. QgsVectorLayer.addFeatures)"),
-    category: str | None = Field(default=None, description="API documentation category to search within"),
-    verified_only: bool = Field(default=False, description="If true, return only verified functions"),
-    query: str | None = Field(default=None, description="SQL query or search query string"),
+    function_path: Annotated[str | None, Field(description="Fully qualified PyQGIS function path (e.g. QgsVectorLayer.addFeatures)")] = None,
+    category: Annotated[str | None, Field(description="API documentation category to search within")] = None,
+    verified_only: Annotated[bool, Field(description="If true, return only verified functions")] = False,
+    query: Annotated[str | None, Field(description="SQL query or search query string")] = None,
 ) -> dict[str, Any]:
     """Query the registry of verified PyQGIS API functions.
 
@@ -3374,12 +3383,12 @@ async def qgis_function_registry_query(
 )
 async def register_verified_qgis(
     ctx: Context,
-    function_path: str = Field(description="Fully qualified PyQGIS function path (e.g. QgsVectorLayer.addFeatures)"),
-    category: str = Field(description="API documentation category to search within"),
-    description: str = Field(default="", description="Description of the model or function"),
-    signature: str = Field(default="", description="Function signature string"),
-    parameter_notes: str = Field(default="", description="Notes about parameter usage and edge cases"),
-    notes: str = Field(default="", description="Additional notes about the function"),
+    function_path: Annotated[str, Field(description="Fully qualified PyQGIS function path (e.g. QgsVectorLayer.addFeatures)")],
+    category: Annotated[str, Field(description="API documentation category to search within")],
+    description: Annotated[str, Field(description="Description of the model or function")] = "",
+    signature: Annotated[str, Field(description="Function signature string")] = "",
+    parameter_notes: Annotated[str, Field(description="Notes about parameter usage and edge cases")] = "",
+    notes: Annotated[str, Field(description="Additional notes about the function")] = "",
 ) -> dict[str, Any]:
     """Register or update a verified PyQGIS API function.
 

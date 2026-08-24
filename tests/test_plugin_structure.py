@@ -12,7 +12,7 @@ import re
 HERE = os.path.dirname(__file__)
 PLUGIN_DIR = os.path.join(HERE, "..", "qgis_mcp_plugin")
 HANDLERS_DIR = os.path.join(PLUGIN_DIR, "handlers")
-MCP_SRC = os.path.join(HERE, "..", "src", "qgis_mcp")
+MCP_SRC = os.path.join(HERE, "..", "qgis_mcp")
 
 # Modules that sit in the plugin package root. A module inside handlers/ must
 # reach them with two dots; one dot resolves inside handlers/ and fails at
