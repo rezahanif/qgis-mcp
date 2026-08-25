@@ -52,8 +52,8 @@
         "kind": "host",
         "secret": false,
         "required": false,
-        "default": "48152",
-        "description": "TCP port exposed by QGIS plugin bridge."
+        "default": "9876",
+        "description": "TCP port exposed by QGIS plugin bridge (default: 9876)."
       }
     ]
   }
