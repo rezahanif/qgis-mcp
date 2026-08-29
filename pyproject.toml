@@ -3,14 +3,19 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/qgis_mcp"]
+# Flat layout - the package is qgis_mcp/ at the repo root, NOT src/qgis_mcp.
+# Pointing this at a path that does not exist does not fail the build: hatchling
+# emits a wheel containing only dist-info, so `pip install qgis-mcp` succeeded
+# and installed no modules at all, leaving the qgis-mcp-server console script
+# importing a package that was never shipped.
+packages = ["qgis_mcp"]
 
 [tool.uv]
 package = true
 
 [project]
 name = "qgis-mcp"
-version = "0.11.0"
+version = "0.12.0"
 description = "QGIS integration through the Model Context Protocol"
 readme = "README.md"
 requires-python = ">=3.12"

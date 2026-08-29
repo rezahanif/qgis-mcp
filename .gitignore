@@ -11,3 +11,9 @@ wheels/
 .venv
 data/
 logs/
+
+# Scraper cache for scripts/gen_api_docs.py
+.doccache/
+
+# Built by scripts/build_plugin_zip.py; declared in manifest.package.include
+qgis_mcp_plugin.zip

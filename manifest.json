@@ -1,7 +1,7 @@
 {
   "id": "qgis-mcp",
   "name": "QGIS Connector",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "manifest_schema_version": 1,
   "package_format_version": 1,
   "platform": {
@@ -56,5 +56,57 @@
         "description": "TCP port exposed by QGIS plugin bridge (default: 9876)."
       }
     ]
+  },
+  "package": {
+    "include": [
+      "qgis_mcp",
+      "qgis_mcp_plugin",
+      "qgis_mcp_plugin.zip",
+      "API",
+      "scripts/registry.json",
+      "templates/templates.json"
+    ],
+    "exclude": []
+  },
+  "tool_tiers": {
+    "core": [
+      "add_features",
+      "add_raster_layer",
+      "add_vector_layer",
+      "batch_commands",
+      "create_layout",
+      "delete_features",
+      "evaluate_expression",
+      "execute_code",
+      "execute_processing",
+      "execute_sql",
+      "export_layout",
+      "field_calculator",
+      "get_algorithm_help",
+      "get_error_hints",
+      "get_field_statistics",
+      "get_layer_features",
+      "get_layers",
+      "get_project_info",
+      "list_processing_algorithms",
+      "list_qgis_api_categories",
+      "list_templates",
+      "load_project",
+      "load_template",
+      "qgis_function_registry_query",
+      "render_map",
+      "save_project",
+      "search_qgis_api",
+      "select_features",
+      "set_layer_labeling",
+      "set_layer_style",
+      "update_features"
+    ],
+    "relevance_floor": 5.5
+  },
+  "tool_index": {
+    "exec_tool": "execute_code",
+    "capabilities_file": "qgis_mcp/aiconnect-capabilities.json",
+    "relevance_floor": 5.5
   }
 }

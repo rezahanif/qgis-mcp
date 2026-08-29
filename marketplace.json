@@ -2,18 +2,25 @@
   "id": "qgis-mcp",
   "name": "QGIS GIS Connector",
   "category": "Geographic Information Systems",
-  "tags": ["qgis", "gis", "geospatial", "cartography", "spatial-analysis", "mcp", "pyqgis"],
+  "tags": [
+    "qgis",
+    "gis",
+    "geospatial",
+    "cartography",
+    "spatial-analysis",
+    "mcp",
+    "pyqgis"
+  ],
   "author": {
     "name": "AiConnect Official",
     "url": "https://aiconnect.fun",
     "verified": true
   },
-  "description": "Automate QGIS desktop GIS operations — layer management, feature editing, spatial processing, map rendering, layout export, and style manipulation directly from AI agents via MCP.",
+  "description": "Automate QGIS desktop GIS operations \u2014 layer management, feature editing, spatial processing, map rendering, layout export, and style manipulation directly from AI agents via MCP.",
   "license": "GPL-2.0",
   "homepage": "https://github.com/rezahanif/qgis-mcp",
   "assets": {
-    "icon": "assets/icon.svg",
-    "banner": "assets/banner.png"
+    "icon": "assets/icon.svg"
   },
   "capabilities": [
     "Manage QGIS projects, layers, and feature data",

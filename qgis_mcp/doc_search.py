@@ -95,7 +95,13 @@ class DocIndex:
                 continue
 
             first_line = part.split("\n", 1)[0].strip()
-            function_name = first_line[2:].strip() if first_line.startswith("# ") else first_line
+            # re.split keeps whatever precedes the first heading as parts[0].
+            # Without this guard a file preamble (a provenance comment, a title)
+            # is indexed as a section whose "function name" is that prose, and it
+            # surfaces as a search hit with no syntax and no description.
+            if not first_line.startswith("# "):
+                continue
+            function_name = first_line[2:].strip()
 
             syntax = ""
             syntax_match = re.search(

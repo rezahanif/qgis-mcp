@@ -105,6 +105,45 @@ check("templates: file has entries", len(templates) >= 5)
 check("templates: all have code+name+category", all(
     t.get("code") and t.get("name") and t.get("category") for t in templates.values()))
 
+# ── the SHIPPED payload ───────────────────────────────────────────────
+# Everything above this line runs the Layer B modules against fixtures built in
+# a temp dir. That is worth testing, but it is not what ships - and for as long
+# as these checks were the whole file, all 15 passed while API/ and
+# scripts/registry.json did not exist in the repository at all. Six discovery
+# tools answered "nothing found" on every call and no test objected. A test that
+# cannot fail when the payload is missing is not a test of the payload.
+ROOT = Path(__file__).resolve().parent.parent
+
+api_dir = ROOT / "API"
+api_files = sorted(api_dir.glob("*.md")) if api_dir.is_dir() else []
+check("payload: API/ exists and is non-empty", len(api_files) > 0)
+
+ds.API_DIR = api_dir
+shipped_idx = ds.DocIndex()
+shipped_sections = shipped_idx.list_categories()
+total_sections = sum(c["sections"] for c in shipped_sections)
+check("payload: API/ indexes at least 20 sections", total_sections >= 20)
+check("payload: API/ spans several categories", len(shipped_sections) >= 5)
+check("payload: every shipped section has syntax + description", all(
+    sec["syntax"] and sec["description"] for sec in shipped_idx._sections))
+check("payload: shipped index answers a real query",
+      len(shipped_idx.search("buffer distance")) >= 1)
+check("payload: shipped index still rejects nonsense",
+      shipped_idx.search("zzzznotfound") == [])
+
+shipped_reg = ROOT / "scripts" / "registry.json"
+check("payload: scripts/registry.json exists", shipped_reg.is_file())
+if shipped_reg.is_file():
+    live = FunctionRegistry(registry_path=shipped_reg)
+    summary = live.get_summary()
+    check("payload: registry is not empty", summary["total_registered"] > 0)
+    check("payload: registry entries are verified, not merely listed",
+          summary["total_verified"] > 0)
+    check("payload: every registry entry carries a signature", all(
+        f.get("signature") for f in live.list_functions()))
+
+check("payload: templates/ has at least 10 entries", len(templates) >= 10)
+
 failed = [n for n, ok in results if not ok]
 print(f"\n{len(results) - len(failed)}/{len(results)} Layer B checks passed")
 sys.exit(1 if failed else 0)

@@ -1506,7 +1506,9 @@ async def execute_processing_batch(
 
 @mcp.tool(
     title="Raster Calculator",
-    description="Band math via the QGIS raster calculator. Reference loaded raster layers "
+    description="Band math and band arithmetic via the QGIS raster calculator - compute NDVI "
+    "and other normalized difference vegetation indices, slope masks, and any per-pixel "
+    "expression combining red, green, blue or near-infrared bands. Reference loaded raster layers "
     "in the expression as 'LayerName@band' (e.g. '(\"dem@1\" > 1000) * 1'). Writes a GeoTIFF "
     "to output_path. Output grid/extent taken from reference_layer (layer id or name), "
     "defaulting to the first loaded raster.",
@@ -1668,7 +1670,9 @@ async def get_unique_values(
 
 @mcp.tool(
     title="Spatial Join",
-    description="Join attributes by location (native:joinattributesbylocation). "
+    description="Join attributes by location (native:joinattributesbylocation) - attach the "
+    "attributes of the polygon each point falls inside, tag features with the region or "
+    "district containing them, or copy columns between layers by spatial relationship. "
     "predicates int list: 0=intersects 1=contains 2=equals 3=touches 4=overlaps "
     "5=within 6=crosses (default [0]). method: 0=one-to-many 1=first match (default) "
     "2=largest overlap. join_fields = copied columns (default all). "

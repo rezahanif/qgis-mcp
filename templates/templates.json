@@ -7,23 +7,35 @@
       "category": "Vector Analysis",
       "code": "result = processing.run('native:buffer', {\n    'INPUT': layer,\n    'DISTANCE': distance,          # map units (meters in projected CRS)\n    'SEGMENTS': 8,                 # arc approximation; 8 is default, 16 smoother\n    'DISSOLVE': False,             # True = merge overlapping buffers into one\n    'OUTPUT': 'memory:buffer'\n})\noutput_layer = result['OUTPUT']"
     },
+    "categorized_style": {
+      "name": "Categorized Style",
+      "description": "Style a vector layer with one symbol per unique value of a field.",
+      "category": "Styling",
+      "code": "from qgis.core import QgsCategorizedSymbolRenderer, QgsRendererCategory, QgsSymbol\nfrom qgis.PyQt.QtGui import QColor\n\ncategories = []\npalette = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00']\nfor i, value in enumerate(layer.uniqueValues(layer.fields().indexOf(field_name))):\n    sym = QgsSymbol.defaultSymbol(layer.geometryType())\n    sym.setColor(QColor(palette[i % len(palette)]))\n    categories.append(QgsRendererCategory(value, sym, str(value)))\nlayer.setRenderer(QgsCategorizedSymbolRenderer(field_name, categories))\nlayer.triggerRepaint()"
+    },
     "clip_layer": {
       "name": "Clip Layer",
       "description": "Extract features of INPUT that fall inside OVERLAY polygons.",
       "category": "Vector Analysis",
       "code": "result = processing.run('native:clip', {\n    'INPUT': input_layer,\n    'OVERLAY': clip_layer,         # polygon layer defining the keep-region\n    'OUTPUT': 'memory:clipped'\n})\noutput_layer = result['OUTPUT']"
     },
-    "spatial_join_attrs": {
-      "name": "Spatial Join (Attributes)",
-      "description": "Transfer summary attributes from JOIN layer onto TARGET features by spatial relationship.",
+    "dissolve_by_field": {
+      "name": "Dissolve Features by Attribute",
+      "description": "Merge features that share the same attribute value into one multipart feature — the standard way to aggregate polygons up to a region level.",
       "category": "Vector Analysis",
-      "code": "result = processing.run('native:joinattributesbylocation', {\n    'INPUT': target_layer,\n    'JOIN': join_layer,\n    'PREDICATE': [0],              # 0=intersects 1=contains 2=equals 3=touches 4=overlaps 5=within\n    'JOIN_FIELDS': [],             # empty = all fields\n    'SUMMARY_ONLY': False,\n    'DISCARD_NONMATCHING': False,\n    'OUTPUT': 'memory:joined'\n})\noutput_layer = result['OUTPUT']"
+      "code": "result = processing.run('native:dissolve', {\n    'INPUT': layer,\n    'FIELD': ['region'],           # list of field names; [] dissolves everything into one feature\n    'SEPARATE_DISJOINT': False,    # True splits non-touching parts back into singleparts\n    'OUTPUT': 'memory:dissolved'\n})\noutput_layer = result['OUTPUT']"
     },
-    "categorized_style": {
-      "name": "Categorized Style",
-      "description": "Style a vector layer with one symbol per unique value of a field.",
-      "category": "Styling",
-      "code": "from qgis.core import QgsCategorizedSymbolRenderer, QgsRendererCategory, QgsSymbol\nfrom qgis.PyQt.QtGui import QColor\n\ncategories = []\npalette = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00']\nfor i, value in enumerate(layer.uniqueValues(layer.fields().indexOf(field_name))):\n    sym = QgsSymbol.defaultSymbol(layer.geometryType())\n    sym.setColor(QColor(palette[i % len(palette)]))\n    categories.append(QgsRendererCategory(value, sym, str(value)))\nlayer.setRenderer(QgsCategorizedSymbolRenderer(field_name, categories))\nlayer.triggerRepaint()"
+    "export_print_layout": {
+      "name": "Export a Print Layout to Image or PDF",
+      "description": "Render an existing print layout to PNG or PDF at a chosen DPI — the final step of a map-production workflow.",
+      "category": "Print Layouts",
+      "code": "from qgis.core import QgsProject, QgsLayoutExporter\n\nmanager = QgsProject.instance().layoutManager()\nlayout = manager.layoutByName('My Layout')   # returns None if the name does not exist\n\nexporter = QgsLayoutExporter(layout)\n\nimage_settings = QgsLayoutExporter.ImageExportSettings()\nimage_settings.dpi = 300\nresult = exporter.exportToImage('/tmp/map.png', image_settings)\n\npdf_settings = QgsLayoutExporter.PdfExportSettings()\npdf_settings.dpi = 300\nexporter.exportToPdf('/tmp/map.pdf', pdf_settings)\n\n# result == QgsLayoutExporter.Success (0) on success; anything else is a failure code."
+    },
+    "field_statistics_report": {
+      "name": "Field Statistics Report",
+      "description": "Full numeric profile of one field: count, min, max, mean, std, median.",
+      "category": "Expressions",
+      "code": "import statistics\nvals = [f[field_name] for f in layer.getFeatures() if f[field_name] is not None]\nstats = {\n    'count': len(vals),\n    'min': min(vals), 'max': max(vals),\n    'mean': statistics.fmean(vals),\n    'stdev': statistics.stdev(vals) if len(vals) > 1 else 0.0,\n    'median': statistics.median(vals),\n}"
     },
     "graduated_style": {
       "name": "Graduated Style",
@@ -31,11 +43,29 @@
       "category": "Styling",
       "code": "from qgis.core import (QgsGraduatedSymbolRenderer, QgsRendererRange,\n                       QgsClassificationQuantile, QgsSymbol)\nfrom qgis.PyQt.QtGui import QColor\n\nsym = QgsSymbol.defaultSymbol(layer.geometryType())\nrenderer = QgsGraduatedSymbolRenderer(\n    field_name, [])\nrenderer.setClassAttribute(field_name)\nrenderer.setClassificationMethod(QgsClassificationQuantile(5))  # 5 quantile classes\nrenderer.updateClasses(layer, 5)\nramp = renderer.rasterStylesymbol() if False else None\nfrom qgis.core import QgsGradientColorRamp, QgsGradientStop\nrenderer.setSourceColorRamp(QgsGradientColorRamp(\n    QColor('#fee5d9'), QColor('#99000d')))  # light→dark sequential reds\nfor rng in renderer.ranges():\n    s = QgsSymbol.defaultSymbol(layer.geometryType())\n    rng.setSymbol(s)\nlayer.setRenderer(renderer)\nlayer.triggerRepaint()"
     },
-    "field_statistics_report": {
-      "name": "Field Statistics Report",
-      "description": "Full numeric profile of one field: count, min, max, mean, std, median.",
-      "category": "Expressions",
-      "code": "import statistics\nvals = [f[field_name] for f in layer.getFeatures() if f[field_name] is not None]\nstats = {\n    'count': len(vals),\n    'min': min(vals), 'max': max(vals),\n    'mean': statistics.fmean(vals),\n    'stdev': statistics.stdev(vals) if len(vals) > 1 else 0.0,\n    'median': statistics.median(vals),\n}"
+    "label_layer_basic": {
+      "name": "Label a Layer from a Field",
+      "description": "Turn on labels for a vector layer using one field, with a text buffer for legibility over busy basemaps.",
+      "category": "Styling",
+      "code": "from qgis.core import (QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings,\n                       QgsVectorLayerSimpleLabeling)\n\nbuf = QgsTextBufferSettings()\nbuf.setEnabled(True)\nbuf.setSize(1.0)\n\nfmt = QgsTextFormat()\nfmt.setSize(10)\nfmt.setBuffer(buf)\n\nsettings = QgsPalLayerSettings()\nsettings.fieldName = 'name'        # a plain field name, or set isExpression=True for an expression\nsettings.setFormat(fmt)\n\nlayer.setLabeling(QgsVectorLayerSimpleLabeling(settings))\nlayer.setLabelsEnabled(True)       # BOTH calls are required - labeling alone does not render\nlayer.triggerRepaint()"
+    },
+    "reproject_layer": {
+      "name": "Reproject Layer to Another CRS",
+      "description": "Reproject a vector layer into a target CRS — required before any distance or area measurement in a geographic (degree-based) CRS.",
+      "category": "Coordinate Reference Systems",
+      "code": "result = processing.run('native:reprojectlayer', {\n    'INPUT': layer,\n    'TARGET_CRS': 'EPSG:3857',     # projected CRS; use a local UTM zone for accurate metres\n    'OUTPUT': 'memory:reprojected'\n})\noutput_layer = result['OUTPUT']\n# Buffers/areas are only meaningful in a PROJECTED CRS. Reproject first, then measure."
+    },
+    "spatial_join_attrs": {
+      "name": "Spatial Join (Attributes)",
+      "description": "Transfer summary attributes from JOIN layer onto TARGET features by spatial relationship.",
+      "category": "Vector Analysis",
+      "code": "result = processing.run('native:joinattributesbylocation', {\n    'INPUT': target_layer,\n    'JOIN': join_layer,\n    'PREDICATE': [0],              # 0=intersects 1=contains 2=equals 3=touches 4=overlaps 5=within\n    'JOIN_FIELDS': [],             # empty = all fields\n    'SUMMARY_ONLY': False,\n    'DISCARD_NONMATCHING': False,\n    'OUTPUT': 'memory:joined'\n})\noutput_layer = result['OUTPUT']"
+    },
+    "zonal_statistics_raster": {
+      "name": "Zonal Statistics over a Raster",
+      "description": "Summarise raster values inside each polygon (mean, sum, min, max, count) — the usual join between a raster surface and vector zones.",
+      "category": "Raster Analysis",
+      "code": "result = processing.run('native:zonalstatisticsfb', {\n    'INPUT': polygon_layer,\n    'INPUT_RASTER': raster_layer,\n    'RASTER_BAND': 1,\n    'COLUMN_PREFIX': '_',\n    'STATISTICS': [0, 1, 2],       # 0=count 1=sum 2=mean 3=median 4=stdev 5=min 6=max\n    'OUTPUT': 'memory:zonalstats'\n})\noutput_layer = result['OUTPUT']\n# The polygon layer and the raster must share a CRS, or every zone reads NULL."
     }
   }
 }
