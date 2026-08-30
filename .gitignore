@@ -17,3 +17,7 @@ logs/
 
 # Built by scripts/build_plugin_zip.py; declared in manifest.package.include
 qgis_mcp_plugin.zip
+
+# Vendored Windows dependency tree, built by
+# aiconnector/scripts/release/stage-python-vendor.py before packaging. Build artifact.
+_vendor/

@@ -26,6 +26,15 @@ from typing import Annotated, Any, Literal
 # manifest entry work from any cwd (gateway + clean-env runs).
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Vendored dependencies (`stage-python-vendor.py`), shipped inside the package.
+# The connector used to ship source-only, so `from mcp...` below failed on any machine
+# without the MCP SDK installed. AI CONNECT bundles the INTERPRETER; the connector
+# brings its own LIBRARIES. Appended, not inserted, so QGIS's own embedded Python
+# environment and the host-injected `mcp_license_sdk` keep priority.
+_vendor = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "_vendor")
+if os.path.isdir(_vendor):
+    sys.path.append(_vendor)
+
 try:
     from mcp.server.fastmcp import Context, FastMCP
     from mcp.server.fastmcp.prompts.base import UserMessage
