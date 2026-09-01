@@ -563,6 +563,43 @@ mcp = FastMCP(
 )
 
 
+# ===========================================================================
+# Tool tiering — see tool_tiers.json for the full rationale.
+# Only tier-1 tools are registered as typed MCP tools. Tier-2 tools stay in
+# the source tree but are NOT advertised on the wire. They remain reachable
+# through search_qgis_api / list_qgis_api_categories and executable through
+# execute_code.
+# ===========================================================================
+
+_TIER1: set[str] | None = None
+
+def _load_tiers() -> set[str]:
+    global _TIER1
+    if _TIER1 is not None:
+        return _TIER1
+    tier_path = Path(__file__).parent / "tool_tiers.json"
+    if not tier_path.exists():
+        _TIER1 = set()  # no tiers = all tools registered
+        return _TIER1
+    data = json.loads(tier_path.read_text())
+    _TIER1 = set(data.get("tier1", []))
+    return _TIER1
+
+# Monkey-patch @mcp.tool to enforce tiering
+_orig_tool = mcp.tool
+def _tiered_tool(**kwargs):
+    def decorator(func):
+        name = kwargs.get("name") or func.__name__
+        tier1 = _load_tiers()
+        if tier1 and name not in tier1:
+            # Tier-2 tool: skip registration
+            return func  # keep the function but don't register
+        return _orig_tool(**kwargs)(func)
+    return decorator
+
+mcp.tool = _tiered_tool
+
+
 # ---------------------------------------------------------------------------
 # Resource Cache for large results
 # ---------------------------------------------------------------------------
