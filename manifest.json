@@ -15,7 +15,7 @@
   "entry_args": [],
   "stdio": true,
   "token_env_var": "MCP_LICENSE_TOKEN",
-  "entitlement_tier": "pro",
+  "entitlement_tier": "free",
   "platform_requirements": {
     "python": [
       "Python >= 3.10"
