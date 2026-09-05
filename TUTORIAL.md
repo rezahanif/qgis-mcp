@@ -57,6 +57,10 @@ Copy-Item -Recurse -Force "qgis_mcp_plugin" "$env:APPDATA\QGIS\QGIS3\profiles\de
 1. Open **QGIS Desktop**.
 2. Go to **Plugins → Manage and Install Plugins → Installed**, and ensure **QGIS MCP** is checked.
 3. The plugin will automatically start its non-blocking socket server listening on `127.0.0.1:9876` (indicated by a message bar alert).
+4. **Port Discovery & Multi-Instance Handling**:
+   - The connector automatically checks the `QGIS_MCP_PORT` environment variable, reads `%APPDATA%\QGIS\QGIS3\profiles\default\QGIS\QGIS3.ini` under `[qgis_mcp]`, and probes consecutive ports `9876..9885`.
+   - **Finding the Port in QGIS**: Check the toolbar button text (e.g. `MCP :9876`), hover for the tooltip, view the QGIS message bar log, or open **Plugins → QGIS MCP → Help / Configurator**.
+   - **Testing Without QGIS Installed**: If QGIS Desktop is closed or uninstalled, the connector smoothly degrades to `QgisMockAdapter`, providing deterministic responses for CI and offline integration tests without failing.
 
 ### Step 3: Enable in AiConnect Gateway / Desktop
 1. Open **AiConnect Desktop** (or run the AiConnect Gateway on port `8788`).
