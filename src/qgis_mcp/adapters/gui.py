@@ -40,13 +40,29 @@ class QgisGUIAdapter(QgisBaseAdapter):
         return res
 
     def is_available(self) -> bool:
+        # 1. Try configured port first
         try:
-            connected = self.client.connect()
+            connected = self.client.connect(timeout=0.2)
             if connected:
                 self.client.disconnect()
                 return True
         except Exception:
             pass
+
+        # 2. Probe consecutive ports 9876..9885 if configured port failed
+        for p in range(9876, 9886):
+            if p == self.port:
+                continue
+            probe_client = QgisMCPClient(host=self.host, port=p)
+            try:
+                if probe_client.connect(timeout=0.05):
+                    probe_client.disconnect()
+                    self.port = p
+                    self.client.port = p
+                    return True
+            except Exception:
+                pass
+
         return False
 
     def get_capabilities(self) -> CapabilitiesResponse:

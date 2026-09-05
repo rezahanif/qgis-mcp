@@ -4,8 +4,38 @@ import os
 from pathlib import Path
 from typing import Optional
 
+def detect_qgis_port() -> int:
+    """Detect configured QGIS MCP port from environment, QGIS3.ini, or default 9876."""
+    if "QGIS_MCP_PORT" in os.environ:
+        try:
+            return int(os.environ["QGIS_MCP_PORT"])
+        except ValueError:
+            pass
+
+    # Check QGIS user profile QGIS3.ini
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        ini_path = Path(appdata) / "QGIS" / "QGIS3" / "profiles" / "default" / "QGIS" / "QGIS3.ini"
+        if ini_path.exists():
+            try:
+                with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+                    in_section = False
+                    for line in f:
+                        line = line.strip()
+                        if line.lower() == "[qgis_mcp]":
+                            in_section = True
+                        elif in_section:
+                            if line.startswith("["):
+                                break
+                            if line.startswith("port="):
+                                return int(line.split("=")[1])
+            except Exception:
+                pass
+
+    return 9876
+
 DEFAULT_HOST: str = os.environ.get("QGIS_MCP_HOST", "127.0.0.1")
-DEFAULT_PORT: int = int(os.environ.get("QGIS_MCP_PORT", "9876"))
+DEFAULT_PORT: int = detect_qgis_port()
 LOG_LEVEL: str = os.environ.get("QGIS_MCP_LOG_LEVEL", "WARNING").upper()
 
 def detect_qgis_prefix() -> Optional[Path]:
