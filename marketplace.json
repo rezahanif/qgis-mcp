@@ -1,33 +1,32 @@
 {
   "id": "qgis-mcp",
-  "name": "QGIS GIS Connector",
-  "category": "Geographic Information Systems",
+  "name": "QGIS Desktop GIS Automation",
+  "category": "GIS & Spatial Analysis",
   "tags": [
     "qgis",
     "gis",
     "geospatial",
     "cartography",
-    "spatial-analysis",
-    "mcp",
-    "pyqgis"
+    "raster",
+    "vector",
+    "mcp"
   ],
   "author": {
     "name": "AiConnect Official",
     "url": "https://aiconnect.fun",
     "verified": true
   },
-  "description": "Automate QGIS desktop GIS operations \u2014 layer management, feature editing, spatial processing, map rendering, layout export, and style manipulation directly from AI agents via MCP.",
-  "license": "GPL-2.0",
+  "description": "Automate QGIS Desktop GIS workflows: load vector/raster layers, inspect spatial CRS, execute QGIS processing algorithms, and capture rendered map images.",
+  "license": "MIT",
   "homepage": "https://github.com/rezahanif/qgis-mcp",
   "assets": {
-    "icon": "assets/icon.svg"
+    "icon": "assets/logo.svg"
   },
   "capabilities": [
-    "Manage QGIS projects, layers, and feature data",
-    "Run processing algorithms and spatial analysis",
-    "Render map canvases and export to images",
-    "Create and manage print layouts",
-    "Apply and modify layer styles and symbology",
-    "Multi-instance support (connect to multiple QGIS windows)"
+    "Inspect spatial vector and raster layer metadata",
+    "Execute QGIS native processing algorithms",
+    "Coordinate Reference System (CRS) transformations",
+    "Export high-resolution rendered map imagery",
+    "Observe active QGIS desktop project state"
   ]
 }

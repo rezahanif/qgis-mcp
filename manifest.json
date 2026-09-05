@@ -1,70 +1,34 @@
 {
-  "id": "qgis-mcp",
-  "name": "QGIS Connector",
-  "version": "0.13.0",
   "manifest_schema_version": 1,
   "package_format_version": 1,
+  "id": "qgis-mcp",
+  "name": "QGIS Connector",
+  "version": "1.0.0",
+  "description": "Automate QGIS Desktop GIS modeling, vector/raster spatial analysis, CRS transformations, and map rendering via MCP.",
+  "publisher": "adapted by AiConnect",
   "platform": {
     "os": "windows",
     "arch": "x64"
   },
   "runtime": "python",
-  "entry": "qgis_mcp/server.py",
-  "min_app_version": "0.4.0",
-  "entitlement_tier": "pro",
-  "port_env_var": "MCP_PORT",
-  "token_env_var": "MCP_LICENSE_TOKEN",
+  "entry": "run_server.py",
+  "entry_args": [],
   "stdio": true,
-  "host_plugin": {
-    "type": "qgis-plugin",
-    "host_app": "QGIS",
-    "install_target_template": "{base}/QGIS/profiles/default/python/plugins/qgis_mcp_plugin/",
-    "artifact": "qgis_mcp_plugin.zip",
-    "requires_host_restart": true,
-    "socket_port_env_var": "QGIS_MCP_PORT",
-    "supported_versions": [
-      "3"
-    ]
-  },
+  "token_env_var": "MCP_LICENSE_TOKEN",
+  "entitlement_tier": "pro",
   "platform_requirements": {
-    "windows": [
-      "Windows 10/11",
-      "QGIS installed (plugin loaded in QGIS)"
+    "python": [
+      "Python >= 3.10"
     ],
-    "qgis": [
-      "QGIS plugin must be installed in the host profile; MCP server starts headless without it (tools fail with structured TOOL_ERROR)"
-    ]
-  },
-  "config": {
-    "env": [
-      {
-        "key": "QGIS_MCP_HOST",
-        "label": "QGIS bridge host",
-        "kind": "host",
-        "secret": false,
-        "required": false,
-        "default": "127.0.0.1",
-        "description": "Host running QGIS plugin bridge."
-      },
-      {
-        "key": "QGIS_MCP_PORT",
-        "label": "QGIS bridge port",
-        "kind": "host",
-        "secret": false,
-        "required": false,
-        "default": "9876",
-        "description": "TCP port exposed by QGIS plugin bridge (default: 9876)."
-      }
+    "host": [
+      "QGIS 3.28+ LTR or later (Windows desktop software)"
     ]
   },
   "package": {
     "include": [
-      "qgis_mcp",
-      "qgis_mcp_plugin",
-      "qgis_mcp_plugin.zip",
-      "API",
-      "scripts/registry.json",
-      "templates/templates.json"
+      "run_server.py",
+      "src",
+      "src/qgis_mcp/aiconnect_aliases.json"
     ],
     "exclude": [],
     "vendor": [
@@ -73,43 +37,21 @@
   },
   "tool_tiers": {
     "core": [
-      "add_features",
-      "add_raster_layer",
-      "add_vector_layer",
-      "batch_commands",
-      "create_layout",
-      "delete_features",
-      "evaluate_expression",
-      "execute_code",
-      "execute_processing",
-      "execute_sql",
-      "export_layout",
-      "field_calculator",
-      "get_algorithm_help",
-      "get_error_hints",
-      "get_field_statistics",
-      "get_layer_features",
-      "get_layers",
-      "get_project_info",
-      "list_processing_algorithms",
-      "list_qgis_api_categories",
-      "list_templates",
-      "load_project",
-      "load_template",
-      "qgis_function_registry_query",
-      "render_map",
-      "save_project",
-      "search_qgis_api",
-      "select_features",
-      "set_layer_labeling",
-      "set_layer_style",
-      "update_features"
+      "qgis_get_capabilities",
+      "qgis_health_check",
+      "qgis_inspect_layer",
+      "qgis_run_processing",
+      "qgis_export_map_image",
+      "qgis_get_active_project",
+      "qgis_load_project",
+      "qgis_zoom_to",
+      "qgis_set_single_symbol",
+      "qgis_get_algorithm_spec",
+      "qgis_quick_map",
+      "qgis_get_window_state",
+      "qgis_get_ui_screenshot"
     ],
-    "relevance_floor": 5.5
-  },
-  "tool_index": {
-    "exec_tool": "execute_code",
-    "capabilities_file": "qgis_mcp/aiconnect-capabilities.json",
-    "relevance_floor": 5.5
+    "relevance_floor": 3.0,
+    "aliases_file": "src/qgis_mcp/aiconnect_aliases.json"
   }
 }

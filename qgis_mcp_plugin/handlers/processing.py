@@ -15,6 +15,7 @@ from qgis.core import (
     QgsProcessingModelChildParameterSource,
     QgsProcessingModelOutput,
     QgsProcessingModelParameter,
+    QgsProcessingParameterDefinition,
     QgsProcessingParameterBoolean,
     QgsProcessingParameterCrs,
     QgsProcessingParameterDistance,
@@ -107,6 +108,13 @@ class ProcessingHandlers:
             QgsMessageLog.logMessage(f"Processing: {algorithm}", self.LOG_TAG, MSG_INFO)
             budget = self._PROCESSING_TIMEOUT if timeout is None else float(timeout)
             feedback = _ResponsiveFeedback(budget)
+
+            # Normalize parameter keys case-insensitively against algorithm definitions
+            algo_obj = QgsApplication.processingRegistry().algorithmById(algorithm)
+            if algo_obj and isinstance(parameters, dict):
+                valid_names = {p.name().lower(): p.name() for p in algo_obj.parameterDefinitions()}
+                parameters = {valid_names.get(k.lower(), k): v for k, v in parameters.items()}
+
             result = processing.run(algorithm, parameters, feedback=feedback)
             if feedback.timed_out:
                 raise CommandError(
@@ -115,12 +123,42 @@ class ProcessingHandlers:
                 )
             return {"algorithm": algorithm, "result": {k: str(v) for k, v in result.items()}}
         except CommandError:
-            # Already a deliberate, user-facing message (the timeout above).
-            # Re-wrapping it produced "Processing error: Processing cancelled
-            # after 55s...", which reads like the timeout was itself a failure.
             raise
         except Exception as e:
             raise CommandError(f"Processing error: {e!s}") from e
+
+    @command
+    def get_algorithm_spec(self, algorithm, **kwargs):
+        """Introspect algorithm parameters, types, and defaults."""
+        algo = QgsApplication.processingRegistry().algorithmById(algorithm)
+        if not algo:
+            raise CommandError(f"Algorithm not found: {algorithm}")
+
+        params = []
+        for p in algo.parameterDefinitions():
+            params.append({
+                "name": p.name(),
+                "description": p.description(),
+                "type": p.type(),
+                "optional": bool(p.flags() & QgsProcessingParameterDefinition.FlagOptional),
+                "default": str(p.defaultValue()) if p.defaultValue() is not None else None,
+            })
+
+        outputs = []
+        for out in algo.outputDefinitions():
+            outputs.append({
+                "name": out.name(),
+                "description": out.description(),
+                "type": out.type(),
+            })
+
+        return {
+            "algorithm": algorithm,
+            "display_name": algo.displayName(),
+            "group": algo.group(),
+            "parameters": params,
+            "outputs": outputs,
+        }
 
     @command
     def list_processing_algorithms(self, search=None, provider=None, **kwargs):

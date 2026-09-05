@@ -1,0 +1,973 @@
+{
+  "exec_tool": "execute_code",
+  "capabilities": [
+    {
+      "name": "QgsApplication.processingRegistry",
+      "description": "Returns the processing registry, the entry point for enumerating every available algorithm. QgsApplication.processingRegistry() -> QgsProcessingRegistry len(registry.algorithms()) is 0 until the Proce",
+      "category": "Processing Framework",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsCategorizedSymbolRenderer",
+      "description": "Renders each distinct value of one field with its own symbol. QgsCategorizedSymbolRenderer(attrName: str, categories: list[QgsRendererCategory]) layer.triggerRepaint() is required after setRenderer() ",
+      "category": "Symbology and Styling",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsCoordinateReferenceSystem.fromEpsgId",
+      "description": "Builds a CRS from a numeric EPSG code. QgsCoordinateReferenceSystem.fromEpsgId(epsg: int) -> QgsCoordinateReferenceSystem An unknown code returns an INVALID crs object rather than raising - check .isV",
+      "category": "Coordinate Reference Systems",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsCoordinateTransform.transform",
+      "description": "Reprojects a point from the source CRS to the destination CRS. QgsCoordinateTransform(src, dest, QgsProject.instance()).transform(point: QgsPointXY) -> QgsPointXY Constructing the transform is the exp",
+      "category": "Coordinate Reference Systems",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsDistanceArea.measureLength",
+      "description": "Measures true ellipsoidal length of a geometry rather than planar CRS-unit length. da = QgsDistanceArea(); da.setEllipsoid('WGS84'); da.measureLength(geometry) -> float This is how to get metres out o",
+      "category": "Coordinate Reference Systems",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsExpression.evaluate",
+      "description": "Evaluates a QGIS expression, optionally against a feature context. QgsExpression(text).evaluate(QgsExpressionContext) -> Any Check hasEvalError() - a failed evaluation returns None, which is indisting",
+      "category": "Expressions",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsFeatureRequest.setFilterExpression",
+      "description": "Restricts a feature iteration to features matching a QGIS expression. QgsFeatureRequest().setFilterExpression(expression: str) -> QgsFeatureRequest Filtering in the request is far cheaper than iterati",
+      "category": "Vector Analysis",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsGeometry.buffer",
+      "description": "Returns a buffer polygon around the geometry, approximating curves with `segments` per quadrant. geometry.buffer(distance: float, segments: int) -> QgsGeometry Buffering in a geographic CRS produces a",
+      "category": "Geometry Operations",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsGeometry.centroid",
+      "description": "Returns the centre of mass of the geometry as a point geometry. geometry.centroid() -> QgsGeometry Use pointOnSurface() instead when the result must lie inside the polygon.",
+      "category": "Geometry Operations",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsGeometry.fromWkt",
+      "description": "Builds a geometry from Well-Known Text. QgsGeometry.fromWkt(wkt: str) -> QgsGeometry Check .isNull() after parsing; a silent NULL propagates through every later operation.",
+      "category": "Geometry Operations",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsGeometry.intersection",
+      "description": "Returns the geometry shared by two geometries, empty when they do not overlap. geometry.intersection(other: QgsGeometry) -> QgsGeometry Test .isEmpty() rather than comparing areas; a non-overlap retur",
+      "category": "Geometry Operations",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsGeometry.makeValid",
+      "description": "Repairs an invalid geometry (self-intersections, unclosed rings) and returns a valid one. geometry.makeValid() -> QgsGeometry Run before any overlay operation - GEOS raises on invalid input, which sur",
+      "category": "Geometry Operations",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsProcessingAlgorithm.shortHelpString",
+      "description": "Returns the HTML help text for an algorithm, including what each parameter means. alg.shortHelpString() -> str The cheapest way to discover an unfamiliar algorithm's parameter names without leaving QG",
+      "category": "Processing Framework",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsProcessingRegistry.algorithmById",
+      "description": "Looks up one algorithm by its fully qualified id, e.g. 'native:buffer'. QgsApplication.processingRegistry().algorithmById(id: str) -> QgsProcessingAlgorithm | None Pair with shortHelpString() to read ",
+      "category": "Processing Framework",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsProject.addMapLayer",
+      "description": "Adds a layer to the current project so other tools and the canvas can see it. QgsProject.instance().addMapLayer(layer: QgsMapLayer, addToLegend: bool = True) -> QgsMapLayer A layer built in Python is ",
+      "category": "Project Management",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsSpatialIndex.nearestNeighbor",
+      "description": "Returns the feature ids nearest to a point, using a bulk-loaded R-tree index. QgsSpatialIndex(layer.getFeatures()).nearestNeighbor(point: QgsPointXY, neighbors: int) -> list[int] Returns feature IDs, ",
+      "category": "Vector Analysis",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsVectorFileWriter.writeAsVectorFormatV3",
+      "description": "Writes a vector layer to disk in any OGR format (GPKG, SHP, GeoJSON). QgsVectorFileWriter.writeAsVectorFormatV3(layer, path, transformContext, options) -> tuple V1/V2 are deprecated. Returns (errorCod",
+      "category": "Vector Analysis",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsVectorLayer",
+      "description": "Constructs a vector layer. The 'memory' provider builds a scratch layer from a URI string. QgsVectorLayer(path_or_uri: str, layer_name: str, provider: str) -> QgsVectorLayer ALWAYS check layer.isValid",
+      "category": "Vector Analysis",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsVectorLayer.getFeatures",
+      "description": "Iterates the layer's features, optionally filtered by a QgsFeatureRequest. layer.getFeatures(request: QgsFeatureRequest = ...) -> QgsFeatureIterator Do not call inside an open edit session without com",
+      "category": "Vector Analysis",
+      "verification_status": "verified"
+    },
+    {
+      "name": "QgsVectorLayer.selectByExpression",
+      "description": "Selects features matching a QGIS expression, replacing the current selection by default. layer.selectByExpression(expression: str, behavior: int = SetSelection) -> None Selection is canvas state, not ",
+      "category": "Vector Analysis",
+      "verification_status": "verified"
+    },
+    {
+      "name": "processing.run",
+      "description": "Runs a Processing algorithm by id and returns a dict of its outputs. processing.run(algorithm_id: str, parameters: dict) -> dict Returns a dict keyed by the algorithm's output names, not a layer. Read",
+      "category": "Processing Framework",
+      "verification_status": "verified"
+    },
+    {
+      "name": "add_bookmark",
+      "aliases": [
+        "save a map extent for quick navigation"
+      ]
+    },
+    {
+      "name": "add_features",
+      "aliases": [
+        "insert new features with wkt geometry",
+        "append records to a vector layer"
+      ]
+    },
+    {
+      "name": "add_field",
+      "aliases": [
+        "add an attribute column to a layer"
+      ]
+    },
+    {
+      "name": "add_layer_from_connection",
+      "aliases": [
+        "load a database table as a layer",
+        "query layer from sql against a connection"
+      ]
+    },
+    {
+      "name": "add_layout_label",
+      "aliases": [
+        "place a text label on a layout",
+        "dynamic expression text on a layout"
+      ]
+    },
+    {
+      "name": "add_layout_legend",
+      "aliases": [
+        "place a legend on a layout"
+      ]
+    },
+    {
+      "name": "add_layout_map",
+      "aliases": [
+        "place a map frame on a layout"
+      ]
+    },
+    {
+      "name": "add_layout_picture",
+      "aliases": [
+        "place a north arrow or logo on a layout"
+      ]
+    },
+    {
+      "name": "add_layout_scalebar",
+      "aliases": [
+        "place a scale bar on a layout"
+      ]
+    },
+    {
+      "name": "add_layout_table",
+      "aliases": [
+        "place an attribute table on a layout"
+      ]
+    },
+    {
+      "name": "add_map_theme",
+      "aliases": [
+        "save the current layer visibility as a theme"
+      ]
+    },
+    {
+      "name": "add_raster_layer",
+      "aliases": [
+        "load a geotiff",
+        "add raster imagery to the project",
+        "bring a dem into the project"
+      ]
+    },
+    {
+      "name": "add_table_join",
+      "aliases": [
+        "join a table to a vector layer by attribute"
+      ]
+    },
+    {
+      "name": "add_vector_layer",
+      "aliases": [
+        "load a shapefile",
+        "add a geopackage or geojson layer",
+        "bring vector data into the project"
+      ]
+    },
+    {
+      "name": "add_web_layer",
+      "aliases": [
+        "add an xyz basemap",
+        "connect a wms or wfs service",
+        "tile service layer"
+      ]
+    },
+    {
+      "name": "apply_map_theme",
+      "aliases": [
+        "restore a saved visibility preset"
+      ]
+    },
+    {
+      "name": "apply_style_qml",
+      "aliases": [
+        "load a qml style onto a layer"
+      ]
+    },
+    {
+      "name": "batch_commands",
+      "aliases": [
+        "several qgis commands in one round trip",
+        "chain commands without repeated calls"
+      ]
+    },
+    {
+      "name": "clear_selection",
+      "aliases": [
+        "deselect features on a layer"
+      ]
+    },
+    {
+      "name": "commit_edits",
+      "aliases": [
+        "save the edit buffer to the data source",
+        "commit pending edits"
+      ]
+    },
+    {
+      "name": "configure_atlas",
+      "aliases": [
+        "one layout page per feature",
+        "atlas coverage layer and page naming"
+      ]
+    },
+    {
+      "name": "create_layer_group",
+      "aliases": [
+        "group layers in the tree"
+      ]
+    },
+    {
+      "name": "create_layout",
+      "aliases": [
+        "new print layout"
+      ]
+    },
+    {
+      "name": "create_memory_layer",
+      "aliases": [
+        "scratch vector layer",
+        "temporary in memory layer with fields"
+      ]
+    },
+    {
+      "name": "create_new_project",
+      "aliases": [
+        "start a blank qgis project"
+      ]
+    },
+    {
+      "name": "create_postgresql_connection",
+      "aliases": [
+        "save a postgis connection",
+        "register a postgresql data source"
+      ]
+    },
+    {
+      "name": "create_processing_model",
+      "aliases": [
+        "build a model3 graph from a spec",
+        "chain algorithms into a reusable model"
+      ]
+    },
+    {
+      "name": "delete_features",
+      "aliases": [
+        "remove features by id or expression",
+        "delete rows from a vector layer"
+      ]
+    },
+    {
+      "name": "delete_field",
+      "aliases": [
+        "drop an attribute column"
+      ]
+    },
+    {
+      "name": "diagnose",
+      "aliases": [
+        "health of the qgis mcp stack",
+        "plugin and server version match",
+        "why is qgis not responding"
+      ]
+    },
+    {
+      "name": "duplicate_layer",
+      "aliases": [
+        "copy a layer with its style"
+      ]
+    },
+    {
+      "name": "evaluate_expression",
+      "aliases": [
+        "evaluate a standalone qgis expression",
+        "aggregate over a layer in an expression"
+      ]
+    },
+    {
+      "name": "execute_code",
+      "aliases": [
+        "run arbitrary pyqgis code",
+        "script qgis directly with python"
+      ]
+    },
+    {
+      "name": "execute_connection_sql",
+      "aliases": [
+        "run sql server side on the database",
+        "ddl or dml against a saved connection"
+      ]
+    },
+    {
+      "name": "execute_processing",
+      "aliases": [
+        "run a processing algorithm",
+        "buffer clip dissolve intersect",
+        "invoke a native or gdal algorithm"
+      ]
+    },
+    {
+      "name": "execute_processing_batch",
+      "aliases": [
+        "run one algorithm over many parameter sets",
+        "batch processing over multiple inputs"
+      ]
+    },
+    {
+      "name": "execute_sql",
+      "aliases": [
+        "sql across loaded layers via a virtual layer",
+        "join layers with a query"
+      ]
+    },
+    {
+      "name": "export_atlas",
+      "aliases": [
+        "export atlas pages to pdf or images"
+      ]
+    },
+    {
+      "name": "export_layer",
+      "aliases": [
+        "write a layer to gpkg shp geojson or tif",
+        "save a layer to disk with reprojection"
+      ]
+    },
+    {
+      "name": "export_layout",
+      "aliases": [
+        "export a print layout to pdf or png",
+        "render a layout at a given dpi"
+      ]
+    },
+    {
+      "name": "field_calculator",
+      "aliases": [
+        "populate a field from an expression",
+        "compute a new attribute column"
+      ]
+    },
+    {
+      "name": "find_layer",
+      "aliases": [
+        "locate layers by name pattern",
+        "wildcard layer name search"
+      ]
+    },
+    {
+      "name": "get_3d_screenshot",
+      "aliases": [
+        "capture the open 3d map view",
+        "image of the 3d scene"
+      ]
+    },
+    {
+      "name": "get_active_layer",
+      "aliases": [
+        "which layer is selected in the panel"
+      ]
+    },
+    {
+      "name": "get_algorithm_help",
+      "aliases": [
+        "parameters and outputs of an algorithm",
+        "how to call a processing algorithm"
+      ]
+    },
+    {
+      "name": "get_bookmarks",
+      "aliases": [
+        "saved spatial bookmarks"
+      ]
+    },
+    {
+      "name": "get_canvas_extent",
+      "aliases": [
+        "current map extent and crs"
+      ]
+    },
+    {
+      "name": "get_canvas_scale",
+      "aliases": [
+        "current map scale and rotation"
+      ]
+    },
+    {
+      "name": "get_canvas_screenshot",
+      "aliases": [
+        "fast grab of the map canvas widget",
+        "quick canvas image without re-render"
+      ]
+    },
+    {
+      "name": "get_edit_status",
+      "aliases": [
+        "is the layer being edited",
+        "pending added and changed feature counts"
+      ]
+    },
+    {
+      "name": "get_error_hints",
+      "aliases": [
+        "recovery guidance for a typed qgis error code"
+      ]
+    },
+    {
+      "name": "get_field_statistics",
+      "aliases": [
+        "sum mean min max of a numeric field",
+        "aggregate a column",
+        "descriptive statistics for an attribute"
+      ]
+    },
+    {
+      "name": "get_layer_crs",
+      "aliases": [
+        "coordinate reference system of a layer",
+        "epsg code of a layer"
+      ]
+    },
+    {
+      "name": "get_layer_extent",
+      "aliases": [
+        "bounding box of a layer"
+      ]
+    },
+    {
+      "name": "get_layer_features",
+      "aliases": [
+        "read attributes of features",
+        "query features with an expression filter",
+        "fetch rows from a vector layer"
+      ]
+    },
+    {
+      "name": "get_layer_labeling",
+      "aliases": [
+        "current label configuration of a layer"
+      ]
+    },
+    {
+      "name": "get_layer_tree",
+      "aliases": [
+        "layer tree with groups and children",
+        "structure of the layers panel"
+      ]
+    },
+    {
+      "name": "get_layers",
+      "aliases": [
+        "list layers in the project",
+        "layer inventory with ids and types"
+      ]
+    },
+    {
+      "name": "get_layout_info",
+      "aliases": [
+        "items and pages in a print layout"
+      ]
+    },
+    {
+      "name": "get_map_themes",
+      "aliases": [
+        "saved visibility presets"
+      ]
+    },
+    {
+      "name": "get_message_log",
+      "aliases": [
+        "qgis log entries",
+        "recent warnings and critical messages"
+      ]
+    },
+    {
+      "name": "get_plugin_info",
+      "aliases": [
+        "details of an installed plugin"
+      ]
+    },
+    {
+      "name": "get_processing_providers",
+      "aliases": [
+        "which providers are active",
+        "gdal grass saga algorithm counts"
+      ]
+    },
+    {
+      "name": "get_project_info",
+      "aliases": [
+        "project title and crs",
+        "how many layers in the project",
+        "project file metadata"
+      ]
+    },
+    {
+      "name": "get_project_variables",
+      "aliases": [
+        "project level variables"
+      ]
+    },
+    {
+      "name": "get_qgis_info",
+      "aliases": [
+        "qgis version and profile path",
+        "installed plugin count"
+      ]
+    },
+    {
+      "name": "get_raster_info",
+      "aliases": [
+        "raster band count and dimensions",
+        "per band statistics and nodata",
+        "raster extent and crs"
+      ]
+    },
+    {
+      "name": "get_selection",
+      "aliases": [
+        "which features are selected",
+        "current selection feature ids"
+      ]
+    },
+    {
+      "name": "get_setting",
+      "aliases": [
+        "read a qgis setting by key path"
+      ]
+    },
+    {
+      "name": "get_unique_values",
+      "aliases": [
+        "distinct values of a field",
+        "list the categories in a column"
+      ]
+    },
+    {
+      "name": "identify_features",
+      "aliases": [
+        "what is at this coordinate",
+        "map click identify across layers"
+      ]
+    },
+    {
+      "name": "import_layer_to_connection",
+      "aliases": [
+        "write a layer into postgis or geopackage",
+        "publish a layer to a database table"
+      ]
+    },
+    {
+      "name": "list_connection_tables",
+      "aliases": [
+        "tables and schemas behind a saved connection"
+      ]
+    },
+    {
+      "name": "list_connections",
+      "aliases": [
+        "saved data source connections",
+        "browser panel entries for postgis and geopackage"
+      ]
+    },
+    {
+      "name": "list_layouts",
+      "aliases": [
+        "print layouts in the project"
+      ]
+    },
+    {
+      "name": "list_plugins",
+      "aliases": [
+        "installed qgis plugins and their state"
+      ]
+    },
+    {
+      "name": "list_processing_algorithms",
+      "aliases": [
+        "search processing algorithms by keyword",
+        "which algorithm does this"
+      ]
+    },
+    {
+      "name": "list_processing_models",
+      "aliases": [
+        "registered processing models"
+      ]
+    },
+    {
+      "name": "list_qgis_api_categories",
+      "aliases": [
+        "browse pyqgis documentation categories"
+      ]
+    },
+    {
+      "name": "list_qgis_instances",
+      "aliases": [
+        "configured qgis endpoints",
+        "which qgis instances are reachable"
+      ]
+    },
+    {
+      "name": "list_templates",
+      "aliases": [
+        "ready to run pyqgis code recipes"
+      ]
+    },
+    {
+      "name": "load_project",
+      "aliases": [
+        "open a qgs or qgz project",
+        "load a saved qgis project"
+      ]
+    },
+    {
+      "name": "load_template",
+      "aliases": [
+        "load verified pyqgis template code by id"
+      ]
+    },
+    {
+      "name": "move_layer_to_group",
+      "aliases": [
+        "move a layer into a group"
+      ]
+    },
+    {
+      "name": "ping",
+      "aliases": [
+        "is the qgis plugin server reachable",
+        "connectivity check to qgis"
+      ]
+    },
+    {
+      "name": "qgis_function_registry_query",
+      "aliases": [
+        "verified pyqgis call patterns",
+        "has this pyqgis function been proven"
+      ]
+    },
+    {
+      "name": "raster_calculator",
+      "aliases": [
+        "band math",
+        "ndvi and normalized difference indices",
+        "raster arithmetic expression"
+      ]
+    },
+    {
+      "name": "redo_edits",
+      "aliases": [
+        "reapply an undone edit"
+      ]
+    },
+    {
+      "name": "register_verified_qgis",
+      "aliases": [
+        "record a working pyqgis pattern in the registry"
+      ]
+    },
+    {
+      "name": "reload_plugin",
+      "aliases": [
+        "reload a plugin during development"
+      ]
+    },
+    {
+      "name": "remove_bookmark",
+      "aliases": [
+        "delete a spatial bookmark"
+      ]
+    },
+    {
+      "name": "remove_layer",
+      "aliases": [
+        "drop a layer from the project",
+        "unload a layer by id"
+      ]
+    },
+    {
+      "name": "remove_layout",
+      "aliases": [
+        "delete a print layout"
+      ]
+    },
+    {
+      "name": "remove_map_theme",
+      "aliases": [
+        "delete a map theme"
+      ]
+    },
+    {
+      "name": "rename_field",
+      "aliases": [
+        "rename an attribute column"
+      ]
+    },
+    {
+      "name": "render_map",
+      "aliases": [
+        "render the map canvas to an image",
+        "produce a rendered map picture"
+      ]
+    },
+    {
+      "name": "rollback_edits",
+      "aliases": [
+        "discard uncommitted edits",
+        "revert changes on a layer"
+      ]
+    },
+    {
+      "name": "run_model",
+      "aliases": [
+        "execute a processing model by id",
+        "run a model3 file"
+      ]
+    },
+    {
+      "name": "sample_raster_values",
+      "aliases": [
+        "pixel values at point coordinates",
+        "extract raster values at locations"
+      ]
+    },
+    {
+      "name": "save_project",
+      "aliases": [
+        "save the qgis project",
+        "write the project to a new path"
+      ]
+    },
+    {
+      "name": "save_style_qml",
+      "aliases": [
+        "export a layer style to qml"
+      ]
+    },
+    {
+      "name": "search_qgis_api",
+      "aliases": [
+        "pyqgis class and method lookup",
+        "qgis api documentation search"
+      ]
+    },
+    {
+      "name": "select_features",
+      "aliases": [
+        "select features by expression",
+        "highlight matching rows"
+      ]
+    },
+    {
+      "name": "set_active_layer",
+      "aliases": [
+        "make a layer the active one"
+      ]
+    },
+    {
+      "name": "set_canvas_extent",
+      "aliases": [
+        "pan and zoom the canvas to coordinates",
+        "set the map bounding box"
+      ]
+    },
+    {
+      "name": "set_canvas_scale",
+      "aliases": [
+        "set the map scale denominator",
+        "rotate the canvas"
+      ]
+    },
+    {
+      "name": "set_layer_crs",
+      "aliases": [
+        "reassign a layer crs without reprojecting",
+        "fix a wrongly declared projection"
+      ]
+    },
+    {
+      "name": "set_layer_labeling",
+      "aliases": [
+        "label features with a field",
+        "turn labels on or off",
+        "label font size and colour"
+      ]
+    },
+    {
+      "name": "set_layer_order",
+      "aliases": [
+        "reorder the draw order of layers",
+        "move a layer above another"
+      ]
+    },
+    {
+      "name": "set_layer_property",
+      "aliases": [
+        "layer opacity",
+        "rename a layer",
+        "scale dependent visibility"
+      ]
+    },
+    {
+      "name": "set_layer_style",
+      "aliases": [
+        "categorized symbology by unique values",
+        "graduated symbology over numeric ranges",
+        "single symbol styling",
+        "colour a layer by a field"
+      ]
+    },
+    {
+      "name": "set_layer_visibility",
+      "aliases": [
+        "show or hide a layer on the map",
+        "toggle a layer in the tree"
+      ]
+    },
+    {
+      "name": "set_project_crs",
+      "aliases": [
+        "change the project coordinate reference system",
+        "reproject the map canvas"
+      ]
+    },
+    {
+      "name": "set_project_variable",
+      "aliases": [
+        "define a project variable for expressions"
+      ]
+    },
+    {
+      "name": "set_raster_style",
+      "aliases": [
+        "pseudocolor ramp on a raster band",
+        "hillshade rendering",
+        "rgb multiband rendering",
+        "greyscale raster styling"
+      ]
+    },
+    {
+      "name": "set_setting",
+      "aliases": [
+        "write a qgis setting"
+      ]
+    },
+    {
+      "name": "spatial_join",
+      "aliases": [
+        "join attributes by location",
+        "attach polygon attributes to points",
+        "tag features by containment"
+      ]
+    },
+    {
+      "name": "start_editing",
+      "aliases": [
+        "open an edit session on a layer",
+        "begin editing a vector layer"
+      ]
+    },
+    {
+      "name": "transform_coordinates",
+      "aliases": [
+        "reproject coordinates between crs",
+        "convert a point or bbox to another projection"
+      ]
+    },
+    {
+      "name": "undo_edits",
+      "aliases": [
+        "step back an edit on a layer"
+      ]
+    },
+    {
+      "name": "update_feature_geometry",
+      "aliases": [
+        "move or reshape feature geometry",
+        "replace geometry with new wkt"
+      ]
+    },
+    {
+      "name": "update_features",
+      "aliases": [
+        "edit feature attribute values",
+        "change field values on features"
+      ]
+    },
+    {
+      "name": "validate_expression",
+      "aliases": [
+        "is this qgis expression valid",
+        "check expression syntax and referenced columns"
+      ]
+    },
+    {
+      "name": "zonal_statistics",
+      "aliases": [
+        "per polygon raster statistics",
+        "summarise raster values inside polygons"
+      ]
+    },
+    {
+      "name": "zoom_to_layer",
+      "aliases": [
+        "zoom the canvas to a layer extent",
+        "fit the map to a layer"
+      ]
+    }
+  ]
+}

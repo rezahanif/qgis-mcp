@@ -259,3 +259,122 @@ class SystemHandlers:
         settings = QgsSettings()
         settings.setValue(key, value)
         return {"ok": True, "key": key}
+
+    @command
+    def get_window_state(self, **kwargs):
+        """Get structured metadata of active QGIS window, dialogs, and panels.
+        
+        Pure text/JSON, zero images - ideal for all agents, especially non-vision agents.
+        """
+        from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QDialog
+
+        main_win = self.iface.mainWindow() if self.iface else None
+        active_win = QApplication.activeWindow()
+        active_modal = QApplication.activeModalWidget()
+
+        window_title = main_win.windowTitle() if main_win else (active_win.windowTitle() if active_win else "")
+
+        modal_title = None
+        if active_modal:
+            modal_title = f"{active_modal.windowTitle()} ({type(active_modal).__name__})"
+
+        open_dialogs = []
+        for w in QApplication.topLevelWidgets():
+            if w.isVisible() and w != main_win and w.windowTitle():
+                open_dialogs.append(f"{w.windowTitle()} ({type(w).__name__})")
+
+        visible_panels = []
+        if main_win:
+            for dock in main_win.findChildren(QDockWidget):
+                if dock.isVisible() and dock.windowTitle():
+                    visible_panels.append(dock.windowTitle())
+
+        active_layer_name = None
+        active_layer_id = None
+        if self.iface and self.iface.activeLayer():
+            al = self.iface.activeLayer()
+            active_layer_name = al.name()
+            active_layer_id = al.id()
+
+        status_bar = {}
+        canvas_extent = None
+        if self.iface and self.iface.mapCanvas():
+            canvas = self.iface.mapCanvas()
+            ext = canvas.extent()
+            status_bar["scale"] = f"1:{int(canvas.scale())}"
+            status_bar["crs"] = canvas.mapSettings().destinationCrs().authid()
+            status_bar["center"] = [canvas.center().x(), canvas.center().y()]
+            canvas_extent = {
+                "xmin": ext.xMinimum(),
+                "ymin": ext.yMinimum(),
+                "xmax": ext.xMaximum(),
+                "ymax": ext.yMaximum(),
+            }
+
+        return {
+            "window_title": window_title,
+            "active_modal_dialog": modal_title,
+            "open_dialogs": open_dialogs,
+            "visible_panels": sorted(list(set(visible_panels))),
+            "selected_layer": active_layer_name,
+            "selected_layer_id": active_layer_id,
+            "status_bar": status_bar,
+            "canvas_extent": canvas_extent,
+        }
+
+    @command
+    def get_ui_screenshot(self, target="active", output_path=None, format="png", **kwargs):
+        """Capture a visual screenshot of the QGIS desktop window or dialog.
+        
+        Saves to an image file (PNG/JPG).
+        Target options: 'active' (active modal/dialog or main window), 'main' (full QGIS window),
+        'canvas' (map canvas only).
+        Supported image file formats: png, jpg/jpeg.
+        """
+        import os
+        from pathlib import Path
+        from qgis.PyQt.QtWidgets import QApplication
+
+        main_win = self.iface.mainWindow() if self.iface else None
+        active_win = QApplication.activeWindow()
+        active_modal = QApplication.activeModalWidget()
+
+        if target == "canvas" and self.iface and self.iface.mapCanvas():
+            widget = self.iface.mapCanvas()
+            resolved_target = "canvas"
+        elif target == "main" and main_win:
+            widget = main_win
+            resolved_target = "main_window"
+        else:
+            widget = active_modal or active_win or main_win
+            resolved_target = type(widget).__name__ if widget else "unknown"
+
+        if not widget:
+            raise CommandError("No visible QGIS window or widget available to capture.")
+
+        pixmap = widget.grab()
+
+        if not output_path:
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            clean_fmt = "jpg" if format.lower() in ["jpg", "jpeg"] else "png"
+            output_path = os.path.join(temp_dir, f"qgis_ui_screenshot.{clean_fmt}")
+
+        out_path_obj = Path(output_path)
+        out_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        save_fmt = "JPEG" if out_path_obj.suffix.lower() in [".jpg", ".jpeg"] or format.lower() in ["jpg", "jpeg"] else "PNG"
+        saved = pixmap.save(str(out_path_obj), save_fmt)
+        if not saved:
+            raise CommandError(f"Failed to save screenshot image to {output_path}")
+
+        file_size = out_path_obj.stat().st_size if out_path_obj.exists() else 0
+
+        return {
+            "output_path": str(out_path_obj.as_posix()),
+            "target": resolved_target,
+            "widget_title": widget.windowTitle() if hasattr(widget, "windowTitle") else "",
+            "width": pixmap.width(),
+            "height": pixmap.height(),
+            "file_size_bytes": file_size,
+            "format": save_fmt.lower(),
+        }

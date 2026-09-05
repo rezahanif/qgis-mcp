@@ -313,28 +313,8 @@ class QgisMCPPlugin:
         if not affected:
             return  # nothing to migrate - stay silent
 
-        # Prompt once, regardless of choice.
+        # Migrate automatically and notify via non-blocking messageBar
         settings.setValue(f"{SETTINGS_PREFIX}/refresh_removal_prompted", True)
-
-        clients = ", ".join(sorted({c for c, *_ in affected}))
-        box = QMessageBox(self.iface.mainWindow())
-        box.setWindowTitle("QGIS MCP - fix offline startup?")
-        box.setIcon(MSGBOX_QUESTION)
-        box.setText(
-            f"Your MCP config for {clients} uses '--refresh-package', which "
-            "makes the server fail to start without internet access."
-        )
-        box.setInformativeText(
-            "Remove '--refresh-package qgis-mcp' so the cached version is used "
-            "(works offline, faster start; update manually when needed). "
-            "Restart your AI client afterwards to take effect."
-        )
-        update_btn = box.addButton("Update configs", MSGBOX_ACCEPT_ROLE)
-        box.addButton("Not now", MSGBOX_REJECT_ROLE)
-        box.exec()
-
-        if box.clickedButton() is not update_btn:
-            return
 
         updated = []
         for client, path, key, data in affected:
@@ -349,9 +329,16 @@ class QgisMCPPlugin:
                     f"Failed to update {client} config: {e}", "MCP", MSG_CRITICAL
                 )
         if updated:
+            clients_str = ", ".join(updated)
             QgsMessageLog.logMessage(
-                f"Removed --refresh-package from configs: {', '.join(updated)}", "MCP", MSG_INFO
+                f"Removed --refresh-package from configs: {clients_str}", "MCP", MSG_INFO
             )
+            try:
+                self.iface.messageBar().pushSuccess(
+                    "QGIS MCP", f"Optimized MCP configs for offline startup ({clients_str})."
+                )
+            except Exception:
+                pass
 
     def toggle_server(self, checked):
         if checked:

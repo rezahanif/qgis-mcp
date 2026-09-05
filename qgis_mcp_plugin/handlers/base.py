@@ -14,8 +14,8 @@ from ..errors import CommandError, LayerNotFound, WrongLayerType
 class HandlerBase:
     """Layer lookup and value conversion used by every other mixin."""
 
-    @staticmethod
-    def _layer(layer_id):
+    @classmethod
+    def _layer(cls, layer_id):
         """The project layer with *layer_id*, or raise :class:`LayerNotFound`.
 
         Every handler that takes a ``layer_id`` needs exactly this lookup, and
@@ -25,6 +25,9 @@ class HandlerBase:
         """
         layer = QgsProject.instance().mapLayer(layer_id)
         if layer is None:
+            by_name = QgsProject.instance().mapLayersByName(layer_id)
+            if by_name:
+                return by_name[0]
             raise LayerNotFound(layer_id)
         return layer
 

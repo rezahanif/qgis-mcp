@@ -55,12 +55,20 @@ class ProjectHandlers:
             raise CommandError(f"Failed to save project to {save_path}")
 
     @command
-    def load_project(self, path, **kwargs):
+    def load_project(self, path, zoom_to_extent=True, **kwargs):
         project = QgsProject.instance()
         if project.read(path):
-            self.iface.mapCanvas().refresh()
+            canvas = self.iface.mapCanvas()
+            if zoom_to_extent:
+                canvas.zoomToFullExtent()
+            canvas.refresh()
             QgsMessageLog.logMessage(f"Project loaded: {path}", self.LOG_TAG, MSG_INFO)
-            return {"loaded": path, "layer_count": len(project.mapLayers())}
+            extent = canvas.extent()
+            return {
+                "loaded": path,
+                "layer_count": len(project.mapLayers()),
+                "extent": [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()],
+            }
         else:
             raise CommandError(f"Failed to load project from {path}")
 

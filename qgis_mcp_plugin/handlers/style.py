@@ -23,6 +23,7 @@ from qgis.core import (
     QgsStyle,
     QgsSymbol,
 )
+from qgis.PyQt.QtGui import QColor
 
 from ..compat import (
     CONTRAST_CLIP_MINMAX,
@@ -114,6 +115,42 @@ class StyleHandlers:
         layer.triggerRepaint()
         self.iface.layerTreeView().refreshLayerSymbology(layer.id())
         return {"ok": True}
+
+    @command
+    def set_single_symbol(
+        self,
+        layer_id,
+        color=None,
+        fill_color=None,
+        stroke_color=None,
+        stroke_width=None,
+        opacity=None,
+        **kwargs,
+    ):
+        """Set a uniform single symbol on a vector layer with direct hex color, width, and opacity."""
+        layer = self._get_vector_layer(layer_id)
+        sym = QgsSymbol.defaultSymbol(layer.geometryType())
+        target_color = color or fill_color
+        if target_color:
+            sym.setColor(QColor(target_color))
+        if opacity is not None:
+            sym.setOpacity(float(opacity))
+        if stroke_width is not None and hasattr(sym, "setWidth"):
+            sym.setWidth(float(stroke_width))
+        if stroke_color and hasattr(sym, "symbolLayer") and sym.symbolLayerCount() > 0:
+            sl = sym.symbolLayer(0)
+            if hasattr(sl, "setStrokeColor"):
+                sl.setStrokeColor(QColor(stroke_color))
+        layer.setRenderer(QgsSingleSymbolRenderer(sym))
+        layer.triggerRepaint()
+        self.iface.layerTreeView().refreshLayerSymbology(layer.id())
+        self.iface.mapCanvas().refresh()
+        return {
+            "ok": True,
+            "layer_id": layer.id(),
+            "color": target_color,
+            "stroke_width": stroke_width,
+        }
 
     _SHADER_INTERPOLATION: ClassVar[dict] = {
         "interpolated": SHADER_INTERPOLATED,

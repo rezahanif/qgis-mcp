@@ -1,0 +1,67 @@
+{
+  "_doc": "Authored intent phrasings for AiConnect BM25 lexical router.",
+  "aliases": {
+    "qgis_get_capabilities": [
+      "qgis install version and gdal support",
+      "available qgis processing providers",
+      "is qgis desktop running"
+    ],
+    "qgis_health_check": [
+      "verify pyqgis paths and osgeo4w environment",
+      "check qgis python dependencies"
+    ],
+    "qgis_inspect_layer": [
+      "vector layer attributes and feature count",
+      "raster layer bands and spatial resolution",
+      "layer crs and bounding box extent"
+    ],
+    "qgis_run_processing": [
+      "execute qgis processing algorithm",
+      "run spatial buffer clip or dissolve",
+      "reproject layer to new coordinate reference system"
+    ],
+    "qgis_export_map_image": [
+      "render map canvas to png image",
+      "export current qgis view to image"
+    ],
+    "qgis_get_active_project": [
+      "inspect open qgis project file",
+      "list layers currently loaded in desktop session"
+    ],
+    "qgis_load_project": [
+      "open qgis project file on screen",
+      "load qgz project and center map viewport",
+      "load spatial project into desktop session"
+    ],
+    "qgis_zoom_to": [
+      "zoom to layer or study area extent",
+      "center map canvas camera on bounding box",
+      "fit map view to layer features"
+    ],
+    "qgis_set_single_symbol": [
+      "change vector layer color or stroke width",
+      "set layer color to neon green or hex code",
+      "style vector features with single symbol"
+    ],
+    "qgis_get_algorithm_spec": [
+      "inspect processing algorithm parameters and schema",
+      "get required inputs for buffer or clip algorithm",
+      "discover qgis algorithm parameters and default values"
+    ],
+    "qgis_quick_map": [
+      "bundled quick map canvas render and preview",
+      "zoom to full and export map image in one call",
+      "capture quick map snapshot of current layers"
+    ],
+    "qgis_get_window_state": [
+      "get active qgis window state and open dialogs",
+      "check open panels and active modal dialog text metadata",
+      "inspect qgis gui window title and status bar without images"
+    ],
+    "qgis_get_ui_screenshot": [
+      "capture visual desktop screenshot of qgis window",
+      "take screenshot of active qgis dialog or application",
+      "grab image of qgis desktop gui for multimodal vision analysis"
+    ]
+  }
+}
